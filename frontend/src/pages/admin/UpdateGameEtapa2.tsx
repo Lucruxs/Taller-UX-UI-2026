@@ -726,15 +726,13 @@ export function UpdateGameEtapa2() {
   };
 
   return (
-    <div className="relative min-h-screen overflow-hidden flex flex-col">
-      {/* Fondo - mismo que el panel del profesor */}
-      <div className="absolute inset-0 bg-gradient-to-br from-[#093c92] via-blue-600 to-[#f757ac]" />
-
-      <div className="max-w-6xl mx-auto w-full relative z-10 p-4 sm:p-5 font-sans flex-1 flex flex-col">
+    <div className="bg-[#F8F7F4] min-h-screen">
+      <div className="max-w-6xl mx-auto w-full p-6 md:p-8 font-sans">
         {/* Bot+�n Volver */}
         <Button
           onClick={() => navigate('/admin/panel')}
-          className="bg-white text-blue-900 hover:bg-gray-100 flex items-center gap-2 px-3 py-2 mb-4 rounded-lg shadow-md text-sm"
+          variant="outline"
+          className="flex items-center gap-2 px-3 py-2 mb-6 text-sm text-slate-600 border-slate-200 hover:bg-slate-50 hover:border-slate-300"
         >
           <ArrowLeft className="w-4 h-4" />
           <span>Volver al Panel</span>
@@ -744,7 +742,7 @@ export function UpdateGameEtapa2() {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-white rounded-2xl shadow-2xl p-6 sm:p-8"
+          className="bg-white rounded-3xl shadow-sm border border-slate-200 p-6 sm:p-8"
         >
           {selectedActivity === null ? (
             // Vista de lista de actividades
@@ -754,15 +752,15 @@ export function UpdateGameEtapa2() {
                 <Button
                   onClick={handleBackToStages}
                   variant="ghost"
-                  className="p-2 hover:bg-gray-100 rounded-lg"
+                  className="p-2 hover:bg-slate-100 rounded-xl"
                 >
-                  <ChevronLeft className="w-5 h-5 text-blue-900" />
+                  <ChevronLeft className="w-5 h-5 text-indigo-600" />
                 </Button>
                 <div className="flex-1">
-                  <h1 className="text-2xl sm:text-3xl font-bold text-blue-900">
-                    Etapa 2 - Actividades
+                  <h1 className="text-2xl sm:text-3xl font-bold text-slate-800" style={{ fontFamily: 'Unbounded, sans-serif' }}>
+                    Etapa 2 — Actividades
                   </h1>
-                  <p className="text-gray-600 text-sm">
+                  <p className="text-slate-500 font-medium text-sm mt-0.5" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
                     Lista de actividades de la Etapa 2
                   </p>
                 </div>
@@ -771,11 +769,11 @@ export function UpdateGameEtapa2() {
               {/* Lista de Actividades */}
               {loadingActivities ? (
                 <div className="flex items-center justify-center py-12">
-                  <Loader2 className="w-8 h-8 animate-spin text-pink-500" />
+                  <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
                 </div>
               ) : activities.length === 0 ? (
                 <div className="text-center py-12">
-                  <p className="text-gray-500 text-lg">
+                  <p className="text-slate-400 text-sm font-medium border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50 py-10 px-6" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
                     No se encontraron actividades para esta etapa
                   </p>
                 </div>
@@ -830,31 +828,31 @@ export function UpdateGameEtapa2() {
                             onClick={() => handleActivityClick(activity)}
                             className="group cursor-pointer overflow-hidden relative"
                           >
-                            <div className="bg-white/95 backdrop-blur-sm rounded-xl p-5 py-6 shadow-lg border border-gray-200 group-hover:bg-gradient-to-br group-hover:from-pink-500 group-hover:to-purple-600 group-hover:border-0 transition-all">
+                            <div className="bg-white rounded-2xl p-5 py-6 shadow-sm border border-slate-200 hover:border-indigo-300 hover:shadow-md transition-all">
                               <div className="relative z-10">
-                                <div className={`bg-gradient-to-br ${iconGradient} group-hover:from-white group-hover:to-white/90 w-10 h-10 rounded-xl flex items-center justify-center mb-3`}>
-                                  <IconComponent className="w-5 h-5 text-white group-hover:text-pink-500" />
+                                <div className={`bg-gradient-to-br ${iconGradient} w-10 h-10 rounded-xl flex items-center justify-center mb-3 shadow-sm`}>
+                                  <IconComponent className="w-5 h-5 text-white" />
                                 </div>
-                                
-                                <h3 className="text-sm font-semibold text-blue-900 mb-1.5 group-hover:text-white">
+
+                                <h3 className="text-sm font-semibold text-slate-800 mb-1.5" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
                                   {activity.name}
                                 </h3>
-                                
-                                <p className="text-xs text-gray-600 mb-2 group-hover:text-white/90">
+
+                                <span className="inline-block text-xs font-medium bg-indigo-50 text-indigo-600 rounded-full px-2 py-0.5 mb-2">
                                   {activity.activity_type_name || 'Actividad'}
-                                </p>
+                                </span>
 
                                 {activity.description && (
-                                  <p className="text-xs text-gray-500 mb-2.5 group-hover:text-white/80 line-clamp-2">
+                                  <p className="text-xs text-slate-400 mb-2.5 line-clamp-2">
                                     {activity.description}
                                   </p>
                                 )}
 
                                 <div className="mt-3 flex items-center justify-between">
-                                  <span className="text-xs text-gray-400 group-hover:text-white/70">
-                                    Orden: {activity.order_number}
+                                  <span className="text-xs text-slate-400 bg-slate-100 rounded-full px-2 py-0.5">
+                                    #{activity.order_number}
                                   </span>
-                                  <span className="text-xs text-pink-500 group-hover:text-white font-medium">
+                                  <span className="text-xs text-indigo-600 font-semibold">
                                     Editar →
                                   </span>
                                 </div>
@@ -869,7 +867,7 @@ export function UpdateGameEtapa2() {
                         .sort((a, b) => a.order_number - b.order_number)
                         .map((activity, index) => {
                           const IconComponent = getIconForActivity(activity.activity_type_name, activity.name);
-                          const iconGradient = 'from-gray-400 to-gray-500';
+                          const iconGradient = 'from-indigo-500 to-blue-600';
                           
                           return (
                             <motion.div
@@ -880,34 +878,34 @@ export function UpdateGameEtapa2() {
                               onClick={() => handleActivityClick(activity)}
                               className="group cursor-pointer overflow-hidden relative"
                             >
-                              <div className="bg-white/95 backdrop-blur-sm rounded-xl p-5 py-6 shadow-lg border border-gray-200 group-hover:bg-gradient-to-br group-hover:from-pink-500 group-hover:to-purple-600 group-hover:border-0 transition-all">
+                              <div className="bg-white rounded-2xl p-5 py-6 shadow-sm border border-slate-200 hover:border-indigo-300 hover:shadow-md transition-all">
                                 <div className="relative z-10">
-                                  <div className={`bg-gradient-to-br ${iconGradient} group-hover:from-white group-hover:to-white/90 w-10 h-10 rounded-xl flex items-center justify-center mb-3`}>
-                                    <IconComponent className="w-5 h-5 text-white group-hover:text-pink-500" />
+                                  <div className={`bg-gradient-to-br ${iconGradient} w-10 h-10 rounded-xl flex items-center justify-center mb-3 shadow-sm`}>
+                                    <IconComponent className="w-5 h-5 text-white" />
                                   </div>
-                                  
-                                  <h3 className="text-sm font-semibold text-blue-900 mb-1.5 group-hover:text-white">
+
+                                  <h3 className="text-sm font-semibold text-slate-800 mb-1.5" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
                                     {activity.name}
                                   </h3>
-                                  
-                                  <p className="text-xs text-gray-600 mb-2 group-hover:text-white/90">
+
+                                  <span className="inline-block text-xs font-medium bg-indigo-50 text-indigo-600 rounded-full px-2 py-0.5 mb-2">
                                     {activity.activity_type_name}
-                                  </p>
+                                  </span>
 
                                   {activity.description && (
-                                    <p className="text-xs text-gray-500 mb-2.5 group-hover:text-white/80 line-clamp-2">
+                                    <p className="text-xs text-slate-400 mb-2.5 line-clamp-2">
                                       {activity.description}
                                     </p>
                                   )}
 
                                   <div className="mt-3 flex items-center justify-between">
                                     {selectedStage !== 'otros' && (
-                                      <span className="text-xs text-gray-400 group-hover:text-white/70">
-                                        Orden: {activity.order_number}
+                                      <span className="text-xs text-slate-400 bg-slate-100 rounded-full px-2 py-0.5">
+                                        #{activity.order_number}
                                       </span>
                                     )}
                                     {selectedStage === 'otros' && <div />}
-                                    <span className="text-xs text-pink-500 group-hover:text-white font-medium">
+                                    <span className="text-xs text-indigo-600 font-semibold">
                                       Editar →
                                     </span>
                                   </div>
@@ -929,17 +927,17 @@ export function UpdateGameEtapa2() {
                 <Button
                   onClick={handleBackToActivities}
                   variant="ghost"
-                  className="p-2 hover:bg-gray-100 rounded-lg"
+                  className="p-2 hover:bg-slate-100 rounded-xl"
                 >
-                  <ChevronLeft className="w-5 h-5 text-blue-900" />
+                  <ChevronLeft className="w-5 h-5 text-indigo-600" />
                 </Button>
                 <div className="flex-1">
-                  <h1 className="text-2xl sm:text-3xl font-bold text-blue-900">
+                  <h1 className="text-2xl sm:text-3xl font-bold text-slate-800" style={{ fontFamily: 'Unbounded, sans-serif' }}>
                     Editar Actividad
                   </h1>
-                  <p className="text-gray-600 text-sm">
-                    {(selectedActivity as any)?._isUnified 
-                      ? 'Seleccionar Tema y Desafío' 
+                  <p className="text-slate-500 font-medium text-sm mt-0.5" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                    {(selectedActivity as any)?._isUnified
+                      ? 'Seleccionar Tema y Desafío'
                       : selectedActivity?.name || 'Configuraci+�n de actividad'}
                   </p>
                 </div>
@@ -948,7 +946,7 @@ export function UpdateGameEtapa2() {
               {/* Vista de Gesti+�n de Temas y Desafíos - Solo para "Seleccionar Tema y Desafío" */}
               {loadingActivity ? (
                 <div className="flex items-center justify-center py-12">
-                  <Loader2 className="w-8 h-8 animate-spin text-pink-500" />
+                  <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
                 </div>
               ) : (selectedActivity as any)?._isUnified ? (
                 // Vista especial para gesti+�n de temas y desafíos
@@ -961,26 +959,26 @@ export function UpdateGameEtapa2() {
                         <Button
                           onClick={handleBackToChallenges}
                           variant="ghost"
-                          className="p-2 hover:bg-gray-100 rounded-lg"
+                          className="p-2 hover:bg-slate-100 rounded-xl"
                         >
-                          <ChevronLeft className="w-5 h-5 text-blue-900" />
+                          <ChevronLeft className="w-5 h-5 text-indigo-600" />
                         </Button>
                         <div className="flex-1">
-                          <h2 className="text-xl font-bold text-blue-900">Editar Desafío</h2>
-                          <p className="text-sm text-gray-600">{selectedChallenge.title}</p>
+                          <h2 className="text-xl font-bold text-slate-800" style={{ fontFamily: 'Unbounded, sans-serif' }}>Editar Desafío</h2>
+                          <p className="text-sm text-slate-500 font-medium">{selectedChallenge.title}</p>
                         </div>
                       </div>
 
                       {/* Formulario de edici+�n del desafío */}
-                      <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
-                        <div className="flex items-center gap-2 mb-4">
-                          <Edit className="w-5 h-5 text-blue-900" />
-                          <Label className="text-blue-900 font-semibold">Información del Desafío</Label>
+                      <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-6">
+                        <div className="flex items-center gap-2 mb-4 pb-3 border-b border-slate-100">
+                          <Edit className="w-5 h-5 text-indigo-600" />
+                          <Label className="text-slate-800 font-bold text-base" style={{ fontFamily: 'Unbounded, sans-serif' }}>Información del Desafío</Label>
                         </div>
                         <div className="space-y-4">
                           {/* T+�tulo */}
                           <div>
-                            <Label htmlFor="challenge_title" className="text-sm text-gray-700 mb-2 block">
+                            <Label htmlFor="challenge_title" className="text-sm text-slate-600 font-medium mb-2 block">
                               T+�tulo del Desafío
                             </Label>
                             <Input
@@ -993,7 +991,7 @@ export function UpdateGameEtapa2() {
 
                           {/* Icono */}
                           <div>
-                            <Label htmlFor="challenge_icon" className="text-sm text-gray-700 mb-2 block">
+                            <Label htmlFor="challenge_icon" className="text-sm text-slate-600 font-medium mb-2 block">
                               Icono (Emoji o s+�mbolo)
                             </Label>
                             <Input
@@ -1007,7 +1005,7 @@ export function UpdateGameEtapa2() {
 
                           {/* Descripci+�n del Desafío */}
                           <div>
-                            <Label htmlFor="challenge_description" className="text-sm text-gray-700 mb-2 block">
+                            <Label htmlFor="challenge_description" className="text-sm text-slate-600 font-medium mb-2 block">
                               Descripci+�n del Desafío
                             </Label>
                             <Textarea
@@ -1020,13 +1018,13 @@ export function UpdateGameEtapa2() {
                           </div>
 
                           {/* Informaci+�n de la Persona */}
-                          <div className="border-t pt-4">
-                            <h3 className="text-sm font-semibold text-gray-700 mb-3">Información de la Persona</h3>
+                          <div className="border-t border-slate-100 pt-4">
+                            <h3 className="text-sm font-bold text-slate-700 mb-3" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Información de la Persona</h3>
                             
                             <div className="grid grid-cols-2 gap-4 mb-4">
                               {/* Nombre de la Persona */}
                               <div>
-                                <Label htmlFor="persona_name" className="text-sm text-gray-700 mb-2 block">
+                                <Label htmlFor="persona_name" className="text-sm text-slate-600 font-medium mb-2 block">
                                   Nombre
                                 </Label>
                                 <Input
@@ -1039,7 +1037,7 @@ export function UpdateGameEtapa2() {
 
                               {/* Edad de la Persona */}
                               <div>
-                                <Label htmlFor="persona_age" className="text-sm text-gray-700 mb-2 block">
+                                <Label htmlFor="persona_age" className="text-sm text-slate-600 font-medium mb-2 block">
                                   Edad
                                 </Label>
                                 <Input
@@ -1059,7 +1057,7 @@ export function UpdateGameEtapa2() {
 
                             {/* Historia de la Persona */}
                             <div className="mb-4">
-                              <Label htmlFor="persona_story" className="text-sm text-gray-700 mb-2 block">
+                              <Label htmlFor="persona_story" className="text-sm text-slate-600 font-medium mb-2 block">
                                 Historia/Cita de la Persona
                               </Label>
                               <Textarea
@@ -1073,7 +1071,7 @@ export function UpdateGameEtapa2() {
 
                             {/* Imagen de la Persona */}
                             <div>
-                              <Label htmlFor="persona_image" className="text-sm text-gray-700 mb-2 block">
+                              <Label htmlFor="persona_image" className="text-sm text-slate-600 font-medium mb-2 block">
                                 Imagen de la Persona
                               </Label>
                               <Input
@@ -1093,7 +1091,7 @@ export function UpdateGameEtapa2() {
                                   <img 
                                     src={selectedChallenge.persona_image_url} 
                                     alt="Persona" 
-                                    className="w-24 h-24 object-cover rounded-lg border border-gray-200"
+                                    className="w-24 h-24 object-cover rounded-xl border border-slate-200 shadow-sm"
                                   />
                                 </div>
                               )}
@@ -1101,7 +1099,7 @@ export function UpdateGameEtapa2() {
                           </div>
 
                           {/* Botones */}
-                          <div className="flex gap-3 justify-end pt-4 border-t">
+                          <div className="flex gap-3 justify-end pt-5 border-t border-slate-100">
                             <Button
                               onClick={handleBackToChallenges}
                               variant="outline"
@@ -1142,7 +1140,7 @@ export function UpdateGameEtapa2() {
                                 }
                               }}
                               disabled={savingChallenge}
-                              className="bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white"
+                              className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-6 rounded-xl transition-all shadow-sm"
                             >
                               {savingChallenge ? (
                                 <>
@@ -1168,26 +1166,26 @@ export function UpdateGameEtapa2() {
                         <Button
                           onClick={handleBackToTopics}
                           variant="ghost"
-                          className="p-2 hover:bg-gray-100 rounded-lg"
+                          className="p-2 hover:bg-slate-100 rounded-xl"
                         >
-                          <ChevronLeft className="w-5 h-5 text-blue-900" />
+                          <ChevronLeft className="w-5 h-5 text-indigo-600" />
                         </Button>
                         <div className="flex-1">
-                          <h2 className="text-xl font-bold text-blue-900">Editar Tema</h2>
-                          <p className="text-sm text-gray-600">{selectedTopic.name}</p>
+                          <h2 className="text-xl font-bold text-slate-800" style={{ fontFamily: 'Unbounded, sans-serif' }}>Editar Tema</h2>
+                          <p className="text-sm text-slate-500 font-medium">{selectedTopic.name}</p>
                         </div>
                       </div>
 
                       {/* Formulario de edici+�n del tema */}
-                      <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
-                        <div className="flex items-center gap-2 mb-4">
-                          <Edit className="w-5 h-5 text-blue-900" />
-                          <Label className="text-blue-900 font-semibold">Información del Tema</Label>
+                      <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-6">
+                        <div className="flex items-center gap-2 mb-4 pb-3 border-b border-slate-100">
+                          <Edit className="w-5 h-5 text-indigo-600" />
+                          <Label className="text-slate-800 font-bold text-base" style={{ fontFamily: 'Unbounded, sans-serif' }}>Información del Tema</Label>
                         </div>
                         <div className="space-y-4">
                           {/* Nombre */}
                           <div>
-                            <Label htmlFor="topic_name" className="text-sm text-gray-700 mb-2 block">
+                            <Label htmlFor="topic_name" className="text-sm text-slate-600 font-medium mb-2 block">
                               Nombre del Tema
                             </Label>
                             <Input
@@ -1200,7 +1198,7 @@ export function UpdateGameEtapa2() {
 
                           {/* Icono */}
                           <div>
-                            <Label htmlFor="topic_icon" className="text-sm text-gray-700 mb-2 block">
+                            <Label htmlFor="topic_icon" className="text-sm text-slate-600 font-medium mb-2 block">
                               Icono (Emoji o s+�mbolo)
                             </Label>
                             <Input
@@ -1210,14 +1208,14 @@ export function UpdateGameEtapa2() {
                               placeholder="Ej: ����, ��Ʀ, ���"
                               maxLength={10}
                             />
-                            <p className="text-xs text-gray-500 mt-1">
+                            <p className="text-xs text-slate-500 mt-1">
                               Puedes usar un emoji o s+�mbolo para representar el tema
                             </p>
                           </div>
 
                           {/* Descripci+�n */}
                           <div>
-                            <Label htmlFor="topic_description" className="text-sm text-gray-700 mb-2 block">
+                            <Label htmlFor="topic_description" className="text-sm text-slate-600 font-medium mb-2 block">
                               Descripci+�n
                             </Label>
                             <Textarea
@@ -1231,13 +1229,13 @@ export function UpdateGameEtapa2() {
 
                           {/* Carreras Disponibles (Facultades) */}
                           <div>
-                            <Label className="text-sm text-gray-700 mb-3 block">
+                            <Label className="text-sm text-slate-300 mb-3 block">
                               Carreras Disponibles (Selecciona las facultades)
                             </Label>
                             {faculties.length === 0 ? (
-                              <p className="text-xs text-gray-500">Cargando facultades...</p>
+                              <p className="text-xs text-slate-500">Cargando facultades...</p>
                             ) : (
-                              <div className="space-y-2 max-h-60 overflow-y-auto border border-gray-200 rounded-lg p-3 bg-white">
+                              <div className="space-y-2 max-h-60 overflow-y-auto border border-slate-200 rounded-xl p-3 bg-white">
                                 {faculties.map((faculty) => {
                                   const isSelected = selectedTopic.faculties?.some(
                                     (f: any) => f.id === faculty.id || f === faculty.id
@@ -1245,7 +1243,7 @@ export function UpdateGameEtapa2() {
                                   return (
                                     <label
                                       key={faculty.id}
-                                      className="flex items-center gap-2 p-2 hover:bg-gray-50 rounded cursor-pointer"
+                                      className="flex items-center gap-2 p-2 hover:bg-indigo-50 rounded-lg cursor-pointer"
                                     >
                                       <input
                                         type="checkbox"
@@ -1274,7 +1272,7 @@ export function UpdateGameEtapa2() {
                                         }}
                                         className="rounded"
                                       />
-                                      <span className="text-sm text-gray-700">{faculty.name}</span>
+                                      <span className="text-sm text-slate-600 font-medium">{faculty.name}</span>
                                     </label>
                                   );
                                 })}
@@ -1283,7 +1281,7 @@ export function UpdateGameEtapa2() {
                           </div>
 
                           {/* Botones */}
-                          <div className="flex gap-3 justify-end pt-4 border-t">
+                          <div className="flex gap-3 justify-end pt-5 border-t border-slate-100">
                             <Button
                               onClick={handleBackToTopics}
                               variant="outline"
@@ -1319,7 +1317,7 @@ export function UpdateGameEtapa2() {
                                 }
                               }}
                               disabled={savingTopic}
-                              className="bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white"
+                              className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-6 rounded-xl transition-all shadow-sm"
                             >
                               {savingTopic ? (
                                 <>
@@ -1338,11 +1336,11 @@ export function UpdateGameEtapa2() {
                       </div>
 
                       {/* Lista de Desafíos */}
-                      <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
-                        <div className="flex items-center justify-between mb-4">
+                      <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-6">
+                        <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
                           <div className="flex items-center gap-2">
-                            <Target className="w-5 h-5 text-blue-900" />
-                            <Label className="text-blue-900 font-semibold text-lg">Desafíos</Label>
+                            <Target className="w-5 h-5 text-indigo-600" />
+                            <Label className="text-slate-800 font-bold text-base" style={{ fontFamily: 'Unbounded, sans-serif' }}>Desafíos</Label>
                           </div>
                           <Button
                             onClick={async () => {
@@ -1365,7 +1363,7 @@ export function UpdateGameEtapa2() {
                               }
                             }}
                             disabled={creatingChallenge}
-                            className="bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white"
+                            className="bg-indigo-600 hover:bg-indigo-700 text-white"
                           >
                             {creatingChallenge ? (
                               <>
@@ -1382,10 +1380,10 @@ export function UpdateGameEtapa2() {
                         </div>
                         {loadingChallenges ? (
                           <div className="flex items-center justify-center py-12">
-                            <Loader2 className="w-6 h-6 animate-spin text-pink-500" />
+                            <Loader2 className="w-6 h-6 animate-spin text-indigo-500" />
                           </div>
                         ) : challenges.length === 0 ? (
-                          <p className="text-gray-500 text-center py-8">No hay desafíos disponibles</p>
+                          <p className="text-slate-400 text-sm font-medium text-center py-10 border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50 block" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>No hay desafíos disponibles</p>
                         ) : (
                           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                             {challenges.map((challenge) => (
@@ -1393,7 +1391,7 @@ export function UpdateGameEtapa2() {
                                 key={challenge.id}
                                 initial={{ opacity: 0, scale: 0.9 }}
                                 animate={{ opacity: 1, scale: 1 }}
-                                className="bg-white rounded-xl p-4 border border-gray-200 hover:border-pink-500 cursor-pointer group"
+                                className="bg-white rounded-2xl p-4 border border-slate-200 hover:border-indigo-300 hover:shadow-md cursor-pointer group transition-all"
                                 onClick={() => handleSelectChallenge(challenge)}
                               >
                                 <div className="flex items-start justify-between mb-2">
@@ -1420,9 +1418,9 @@ export function UpdateGameEtapa2() {
                                     <Trash2 className="w-4 h-4 text-red-500" />
                                   </Button>
                                 </div>
-                                <h3 className="font-semibold text-blue-900 mb-1">{challenge.title}</h3>
+                                <h3 className="font-bold text-slate-800 mb-1 text-sm" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{challenge.title}</h3>
                                 {challenge.persona_name && (
-                                  <p className="text-xs text-gray-600">Persona: {challenge.persona_name}</p>
+                                  <p className="text-xs text-slate-400">Persona: {challenge.persona_name}</p>
                                 )}
                               </motion.div>
                             ))}
@@ -1434,14 +1432,14 @@ export function UpdateGameEtapa2() {
                     // Vista principal: Lista de Temas + Temporizador
                     <div className="space-y-6">
                       {/* Temporizador */}
-                      <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
-                        <div className="flex items-center gap-2 mb-4">
-                          <Clock className="w-5 h-5 text-blue-900" />
-                          <Label className="text-blue-900 font-semibold">Temporizador</Label>
+                      <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-6">
+                        <div className="flex items-center gap-2 mb-4 pb-3 border-b border-slate-100">
+                          <Clock className="w-5 h-5 text-indigo-600" />
+                          <Label className="text-slate-800 font-bold text-base" style={{ fontFamily: 'Unbounded, sans-serif' }}>Temporizador</Label>
                         </div>
                         <div className="grid grid-cols-2 gap-4">
                           <div>
-                            <Label htmlFor="timer_minutes" className="text-sm text-gray-700 mb-2 block">
+                            <Label htmlFor="timer_minutes" className="text-sm text-slate-600 font-medium mb-2 block">
                               Minutos
                             </Label>
                             <Input
@@ -1454,7 +1452,7 @@ export function UpdateGameEtapa2() {
                             />
                           </div>
                           <div>
-                            <Label htmlFor="timer_seconds" className="text-sm text-gray-700 mb-2 block">
+                            <Label htmlFor="timer_seconds" className="text-sm text-slate-600 font-medium mb-2 block">
                               Segundos
                             </Label>
                             <Input
@@ -1474,7 +1472,7 @@ export function UpdateGameEtapa2() {
                           <Button
                             onClick={handleSaveActivity}
                             disabled={savingActivity}
-                            className="bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white"
+                            className="bg-indigo-600 hover:bg-indigo-700 text-white"
                           >
                             {savingActivity ? (
                               <>
@@ -1498,11 +1496,11 @@ export function UpdateGameEtapa2() {
                         !(selectedActivity as any)?._isUnified && (
                           <div className="space-y-6">
                             {/* Sopa de Letras */}
-                            <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
-                              <div className="flex items-center justify-between mb-4">
+                            <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-6">
+                              <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
                                 <div className="flex items-center gap-2">
-                                  <Gamepad2 className="w-5 h-5 text-blue-900" />
-                                  <Label className="text-blue-900 font-semibold text-lg">Sopa de Letras</Label>
+                                  <Gamepad2 className="w-5 h-5 text-indigo-600" />
+                                  <Label className="text-slate-800 font-bold text-base" style={{ fontFamily: 'Unbounded, sans-serif' }}>Sopa de Letras</Label>
                                 </div>
                                 <Button
                                   onClick={() => {
@@ -1511,7 +1509,7 @@ export function UpdateGameEtapa2() {
                                     setWordSearchName('');
                                     setWordSearchPreview(null);
                                   }}
-                                  className="bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white"
+                                  className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-6 rounded-xl transition-all shadow-sm"
                                 >
                                   <Plus className="w-4 h-4 mr-2" />
                                   Crear Nueva Sopa
@@ -1599,10 +1597,10 @@ export function UpdateGameEtapa2() {
                                 <>
                                   {loadingWordSearch ? (
                                     <div className="flex items-center justify-center py-12">
-                                      <Loader2 className="w-6 h-6 animate-spin text-pink-500" />
+                                      <Loader2 className="w-6 h-6 animate-spin text-indigo-500" />
                                     </div>
                                   ) : wordSearchOptions.length === 0 ? (
-                                    <p className="text-gray-500 text-center py-8">No hay sopas de letras creadas</p>
+                                    <p className="text-slate-400 text-sm font-medium text-center py-10 border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50 block" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>No hay sopas de letras creadas</p>
                                   ) : (
                                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                                       {wordSearchOptions.map((option) => (
@@ -1610,10 +1608,10 @@ export function UpdateGameEtapa2() {
                                           key={option.id}
                                           initial={{ opacity: 0, scale: 0.9 }}
                                           animate={{ opacity: 1, scale: 1 }}
-                                          className="bg-white rounded-xl p-4 border border-gray-200"
+                                          className="bg-white rounded-2xl p-4 border border-slate-200 hover:border-indigo-300 hover:shadow-sm transition-all"
                                         >
                                           <div className="flex items-start justify-between mb-2">
-                                            <h3 className="font-semibold text-blue-900">{option.name}</h3>
+                                            <h3 className="font-bold text-slate-800 text-sm" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{option.name}</h3>
                                             <Button
                                               variant="ghost"
                                               size="sm"
@@ -1635,7 +1633,7 @@ export function UpdateGameEtapa2() {
                                               <Trash2 className="w-4 h-4 text-red-500" />
                                             </Button>
                                           </div>
-                                          <p className="text-xs text-gray-600">
+                                          <p className="text-xs text-slate-400">
                                             {option.words?.length || 0} palabra{(option.words?.length || 0) !== 1 ? 's' : ''}
                                           </p>
                                         </motion.div>
@@ -1647,11 +1645,11 @@ export function UpdateGameEtapa2() {
                             </div>
 
                             {/* Anagrama */}
-                            <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
-                              <div className="flex items-center justify-between mb-4">
+                            <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-6">
+                              <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
                                 <div className="flex items-center gap-2">
-                                  <Gamepad2 className="w-5 h-5 text-blue-900" />
-                                  <Label className="text-blue-900 font-semibold text-lg">Anagrama</Label>
+                                  <Gamepad2 className="w-5 h-5 text-indigo-600" />
+                                  <Label className="text-slate-800 font-bold text-base" style={{ fontFamily: 'Unbounded, sans-serif' }}>Anagrama</Label>
                                 </div>
                                 <Button
                                   onClick={() => {
@@ -1659,7 +1657,7 @@ export function UpdateGameEtapa2() {
                                     setNewAnagramWord('');
                                     setAnagramPreview('');
                                   }}
-                                  className="bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white"
+                                  className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-6 rounded-xl transition-all shadow-sm"
                                 >
                                   <Plus className="w-4 h-4 mr-2" />
                                   Agregar Palabra
@@ -1679,9 +1677,9 @@ export function UpdateGameEtapa2() {
                                     maxLength={20}
                                   />
                                   {anagramPreview && (
-                                    <div className="bg-white rounded-lg p-4 border border-gray-200">
-                                      <p className="text-sm text-gray-600 mb-2">Preview (desordenada):</p>
-                                      <p className="text-2xl font-bold text-blue-900">{anagramPreview}</p>
+                                    <div className="bg-indigo-50 rounded-xl p-4 border border-indigo-100">
+                                      <p className="text-xs text-indigo-600 font-medium mb-2">Preview (desordenada):</p>
+                                      <p className="text-2xl font-black text-indigo-700" style={{ fontFamily: 'Unbounded, sans-serif' }}>{anagramPreview}</p>
                                     </div>
                                   )}
                                   <div className="flex gap-2">
@@ -1707,10 +1705,10 @@ export function UpdateGameEtapa2() {
                                 <>
                                   {loadingAnagram ? (
                                     <div className="flex items-center justify-center py-12">
-                                      <Loader2 className="w-6 h-6 animate-spin text-pink-500" />
+                                      <Loader2 className="w-6 h-6 animate-spin text-indigo-500" />
                                     </div>
                                   ) : anagramWords.length === 0 ? (
-                                    <p className="text-gray-500 text-center py-8">No hay palabras agregadas</p>
+                                    <p className="text-slate-400 text-sm font-medium text-center py-10 border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50 block" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>No hay palabras agregadas</p>
                                   ) : (
                                     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
                                       {anagramWords.map((word) => (
@@ -1718,9 +1716,9 @@ export function UpdateGameEtapa2() {
                                           key={word.id}
                                           initial={{ opacity: 0, scale: 0.9 }}
                                           animate={{ opacity: 1, scale: 1 }}
-                                          className="bg-white rounded-lg p-3 border border-gray-200 flex items-center justify-between"
+                                          className="bg-white rounded-xl p-3 border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/50 flex items-center justify-between transition-colors"
                                         >
-                                          <span className="font-medium text-blue-900">{word.word}</span>
+                                          <span className="font-bold text-indigo-700 text-sm tracking-wide" style={{ fontFamily: 'Unbounded, sans-serif' }}>{word.word}</span>
                                           <Button
                                             variant="ghost"
                                             size="sm"
@@ -1749,11 +1747,11 @@ export function UpdateGameEtapa2() {
                             </div>
 
                             {/* Preguntas Conocimiento General */}
-                            <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
-                              <div className="flex items-center justify-between mb-4">
+                            <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-6">
+                              <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
                                 <div className="flex items-center gap-2">
-                                  <HelpCircle className="w-5 h-5 text-blue-900" />
-                                  <Label className="text-blue-900 font-semibold text-lg">Preguntas de Conocimiento General</Label>
+                                  <HelpCircle className="w-5 h-5 text-indigo-600" />
+                                  <Label className="text-slate-800 font-bold text-base" style={{ fontFamily: 'Unbounded, sans-serif' }}>Preguntas de Conocimiento General</Label>
                                 </div>
                                 <Button
                                   onClick={() => {
@@ -1767,7 +1765,7 @@ export function UpdateGameEtapa2() {
                                       correct_answer: 0,
                                     });
                                   }}
-                                  className="bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white"
+                                  className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-6 rounded-xl transition-all shadow-sm"
                                 >
                                   <Plus className="w-4 h-4 mr-2" />
                                   Crear Pregunta
@@ -1775,7 +1773,7 @@ export function UpdateGameEtapa2() {
                               </div>
                               
                               {(creatingGeneralKnowledge || editingGeneralKnowledge) ? (
-                                <div className="space-y-4 bg-white rounded-lg p-4 border border-gray-200">
+                                <div className="space-y-4 bg-slate-50 rounded-2xl p-5 border border-slate-100">
                                   <Textarea
                                     label="Pregunta"
                                     value={editingGeneralKnowledge?.question || ''}
@@ -1814,7 +1812,7 @@ export function UpdateGameEtapa2() {
                                     <select
                                       value={editingGeneralKnowledge?.correct_answer ?? 0}
                                       onChange={(e) => setEditingGeneralKnowledge({ ...editingGeneralKnowledge, correct_answer: parseInt(e.target.value) })}
-                                      className="w-full mt-2 px-3 py-2 border border-gray-300 rounded-lg"
+                                      className="w-full mt-2 px-3 py-2 border border-slate-200 rounded-xl bg-white text-slate-800 focus:ring-2 focus:ring-indigo-300 outline-none"
                                     >
                                       <option value={0}>A</option>
                                       <option value={1}>B</option>
@@ -1861,10 +1859,10 @@ export function UpdateGameEtapa2() {
                                 <>
                                   {loadingGeneralKnowledge ? (
                                     <div className="flex items-center justify-center py-12">
-                                      <Loader2 className="w-6 h-6 animate-spin text-pink-500" />
+                                      <Loader2 className="w-6 h-6 animate-spin text-indigo-500" />
                                     </div>
                                   ) : generalKnowledgeQuestions.length === 0 ? (
-                                    <p className="text-gray-500 text-center py-8">No hay preguntas creadas</p>
+                                    <p className="text-slate-400 text-sm font-medium text-center py-10 border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50 block" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>No hay preguntas creadas</p>
                                   ) : (
                                     <div className="space-y-3">
                                       {generalKnowledgeQuestions.map((question) => (
@@ -1876,18 +1874,18 @@ export function UpdateGameEtapa2() {
                                         >
                                           <div className="flex items-start justify-between">
                                             <div className="flex-1">
-                                              <p className="font-semibold text-blue-900 mb-2">{question.question}</p>
+                                              <p className="font-semibold text-slate-800 mb-2 text-sm">{question.question}</p>
                                               <div className="grid grid-cols-2 gap-2 text-sm">
-                                                <p className={question.correct_answer === 0 ? 'text-green-600 font-bold' : 'text-gray-600'}>
+                                                <p className={question.correct_answer === 0 ? 'text-green-600 font-bold' : 'text-slate-500'}>
                                                   A: {question.option_a}
                                                 </p>
-                                                <p className={question.correct_answer === 1 ? 'text-green-600 font-bold' : 'text-gray-600'}>
+                                                <p className={question.correct_answer === 1 ? 'text-green-600 font-bold' : 'text-slate-500'}>
                                                   B: {question.option_b}
                                                 </p>
-                                                <p className={question.correct_answer === 2 ? 'text-green-600 font-bold' : 'text-gray-600'}>
+                                                <p className={question.correct_answer === 2 ? 'text-green-600 font-bold' : 'text-slate-500'}>
                                                   C: {question.option_c}
                                                 </p>
-                                                <p className={question.correct_answer === 3 ? 'text-green-600 font-bold' : 'text-gray-600'}>
+                                                <p className={question.correct_answer === 3 ? 'text-green-600 font-bold' : 'text-slate-500'}>
                                                   D: {question.option_d}
                                                 </p>
                                               </div>
@@ -1942,18 +1940,18 @@ export function UpdateGameEtapa2() {
                         !(selectedActivity as any)?._isUnified && (
                           <div className="space-y-6">
                             {/* Preguntas del Caos */}
-                            <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
-                              <div className="flex items-center justify-between mb-4">
+                            <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-6">
+                              <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
                                 <div className="flex items-center gap-2">
-                                  <MessageCircle className="w-5 h-5 text-blue-900" />
-                                  <Label className="text-blue-900 font-semibold text-lg">Preguntas del Caos</Label>
+                                  <MessageCircle className="w-5 h-5 text-indigo-600" />
+                                  <Label className="text-slate-800 font-bold text-base" style={{ fontFamily: 'Unbounded, sans-serif' }}>Preguntas del Caos</Label>
                                 </div>
                                 <Button
                                   onClick={() => {
                                     setCreatingChaos(true);
                                     setEditingChaos({ question: '' });
                                   }}
-                                  className="bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white"
+                                  className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-6 rounded-xl transition-all shadow-sm"
                                 >
                                   <Plus className="w-4 h-4 mr-2" />
                                   Crear Pregunta
@@ -1961,7 +1959,7 @@ export function UpdateGameEtapa2() {
                               </div>
                               
                               {(creatingChaos || editingChaos) ? (
-                                <div className="space-y-4 bg-white rounded-lg p-4 border border-gray-200">
+                                <div className="space-y-4 bg-slate-50 rounded-2xl p-5 border border-slate-100">
                                   <Textarea
                                     label="Pregunta"
                                     value={editingChaos?.question || ''}
@@ -2008,10 +2006,10 @@ export function UpdateGameEtapa2() {
                                 <>
                                   {loadingChaos ? (
                                     <div className="flex items-center justify-center py-12">
-                                      <Loader2 className="w-6 h-6 animate-spin text-pink-500" />
+                                      <Loader2 className="w-6 h-6 animate-spin text-indigo-500" />
                                     </div>
                                   ) : chaosQuestions.length === 0 ? (
-                                    <p className="text-gray-500 text-center py-8">No hay preguntas creadas</p>
+                                    <p className="text-slate-400 text-sm font-medium text-center py-10 border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50 block" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>No hay preguntas creadas</p>
                                   ) : (
                                     <div className="space-y-3">
                                       {chaosQuestions.map((question) => (
@@ -2019,9 +2017,9 @@ export function UpdateGameEtapa2() {
                                           key={question.id}
                                           initial={{ opacity: 0, y: 10 }}
                                           animate={{ opacity: 1, y: 0 }}
-                                          className="bg-white rounded-lg p-4 border border-gray-200 flex items-start justify-between"
+                                          className="bg-white rounded-xl p-4 border border-slate-200 hover:border-indigo-200 hover:shadow-sm flex items-start justify-between transition-all"
                                         >
-                                          <p className="font-medium text-blue-900 flex-1">{question.question}</p>
+                                          <p className="font-semibold text-slate-800 flex-1 text-sm">{question.question}</p>
                                           <div className="flex gap-2 ml-4">
                                             <Button
                                               variant="ghost"
@@ -2062,11 +2060,11 @@ export function UpdateGameEtapa2() {
                             </div>
 
                             {/* Preguntas Conocimiento General (mismas que minijuego) */}
-                            <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
-                              <div className="flex items-center justify-between mb-4">
+                            <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-6">
+                              <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
                                 <div className="flex items-center gap-2">
-                                  <HelpCircle className="w-5 h-5 text-blue-900" />
-                                  <Label className="text-blue-900 font-semibold text-lg">Preguntas de Conocimiento General</Label>
+                                  <HelpCircle className="w-5 h-5 text-indigo-600" />
+                                  <Label className="text-slate-800 font-bold text-base" style={{ fontFamily: 'Unbounded, sans-serif' }}>Preguntas de Conocimiento General</Label>
                                 </div>
                                 <Button
                                   onClick={() => {
@@ -2080,7 +2078,7 @@ export function UpdateGameEtapa2() {
                                       correct_answer: 0,
                                     });
                                   }}
-                                  className="bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white"
+                                  className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-6 rounded-xl transition-all shadow-sm"
                                 >
                                   <Plus className="w-4 h-4 mr-2" />
                                   Crear Pregunta
@@ -2088,7 +2086,7 @@ export function UpdateGameEtapa2() {
                               </div>
                               
                               {(creatingPresentationGeneralKnowledge || editingPresentationGeneralKnowledge) ? (
-                                <div className="space-y-4 bg-white rounded-lg p-4 border border-gray-200">
+                                <div className="space-y-4 bg-slate-50 rounded-2xl p-5 border border-slate-100">
                                   <Textarea
                                     label="Pregunta"
                                     value={editingPresentationGeneralKnowledge?.question || ''}
@@ -2127,7 +2125,7 @@ export function UpdateGameEtapa2() {
                                     <select
                                       value={editingPresentationGeneralKnowledge?.correct_answer ?? 0}
                                       onChange={(e) => setEditingPresentationGeneralKnowledge({ ...editingPresentationGeneralKnowledge, correct_answer: parseInt(e.target.value) })}
-                                      className="w-full mt-2 px-3 py-2 border border-gray-300 rounded-lg"
+                                      className="w-full mt-2 px-3 py-2 border border-slate-200 rounded-xl bg-white text-slate-800 focus:ring-2 focus:ring-indigo-300 outline-none"
                                     >
                                       <option value={0}>A</option>
                                       <option value={1}>B</option>
@@ -2175,10 +2173,10 @@ export function UpdateGameEtapa2() {
                                 <>
                                   {loadingPresentationGeneralKnowledge ? (
                                     <div className="flex items-center justify-center py-12">
-                                      <Loader2 className="w-6 h-6 animate-spin text-pink-500" />
+                                      <Loader2 className="w-6 h-6 animate-spin text-indigo-500" />
                                     </div>
                                   ) : presentationGeneralKnowledge.length === 0 ? (
-                                    <p className="text-gray-500 text-center py-8">No hay preguntas creadas</p>
+                                    <p className="text-slate-400 text-sm font-medium text-center py-10 border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50 block" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>No hay preguntas creadas</p>
                                   ) : (
                                     <div className="space-y-3">
                                       {presentationGeneralKnowledge.map((question) => (
@@ -2190,18 +2188,18 @@ export function UpdateGameEtapa2() {
                                         >
                                           <div className="flex items-start justify-between">
                                             <div className="flex-1">
-                                              <p className="font-semibold text-blue-900 mb-2">{question.question}</p>
+                                              <p className="font-semibold text-slate-800 mb-2 text-sm">{question.question}</p>
                                               <div className="grid grid-cols-2 gap-2 text-sm">
-                                                <p className={question.correct_answer === 0 ? 'text-green-600 font-bold' : 'text-gray-600'}>
+                                                <p className={question.correct_answer === 0 ? 'text-green-600 font-bold' : 'text-slate-500'}>
                                                   A: {question.option_a}
                                                 </p>
-                                                <p className={question.correct_answer === 1 ? 'text-green-600 font-bold' : 'text-gray-600'}>
+                                                <p className={question.correct_answer === 1 ? 'text-green-600 font-bold' : 'text-slate-500'}>
                                                   B: {question.option_b}
                                                 </p>
-                                                <p className={question.correct_answer === 2 ? 'text-green-600 font-bold' : 'text-gray-600'}>
+                                                <p className={question.correct_answer === 2 ? 'text-green-600 font-bold' : 'text-slate-500'}>
                                                   C: {question.option_c}
                                                 </p>
-                                                <p className={question.correct_answer === 3 ? 'text-green-600 font-bold' : 'text-gray-600'}>
+                                                <p className={question.correct_answer === 3 ? 'text-green-600 font-bold' : 'text-slate-500'}>
                                                   D: {question.option_d}
                                                 </p>
                                               </div>
@@ -2251,11 +2249,11 @@ export function UpdateGameEtapa2() {
                       )}
 
                       {/* Lista de Temas */}
-                      <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
-                        <div className="flex items-center justify-between mb-4">
+                      <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-6">
+                        <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
                           <div className="flex items-center gap-2">
-                            <Target className="w-5 h-5 text-blue-900" />
-                            <Label className="text-blue-900 font-semibold text-lg">Temas</Label>
+                            <Target className="w-5 h-5 text-indigo-600" />
+                            <Label className="text-slate-800 font-bold text-base" style={{ fontFamily: 'Unbounded, sans-serif' }}>Temas</Label>
                           </div>
                           <Button
                             onClick={async () => {
@@ -2279,7 +2277,7 @@ export function UpdateGameEtapa2() {
                               }
                             }}
                             disabled={creatingTopic}
-                            className="bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white"
+                            className="bg-indigo-600 hover:bg-indigo-700 text-white"
                           >
                             {creatingTopic ? (
                               <>
@@ -2296,10 +2294,10 @@ export function UpdateGameEtapa2() {
                         </div>
                         {loadingTopics ? (
                           <div className="flex items-center justify-center py-12">
-                            <Loader2 className="w-6 h-6 animate-spin text-pink-500" />
+                            <Loader2 className="w-6 h-6 animate-spin text-indigo-500" />
                           </div>
                         ) : topics.length === 0 ? (
-                          <p className="text-gray-500 text-center py-8">No hay temas disponibles</p>
+                          <p className="text-slate-400 text-sm font-medium text-center py-10 border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50 block" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>No hay temas disponibles</p>
                         ) : (
                           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                             {topics.map((topic) => (
@@ -2307,7 +2305,7 @@ export function UpdateGameEtapa2() {
                                 key={topic.id}
                                 initial={{ opacity: 0, scale: 0.9 }}
                                 animate={{ opacity: 1, scale: 1 }}
-                                className="bg-white rounded-xl p-4 border border-gray-200 hover:border-pink-500 cursor-pointer group"
+                                className="bg-white rounded-2xl p-4 border border-slate-200 hover:border-indigo-300 hover:shadow-md cursor-pointer group transition-all"
                                 onClick={() => handleSelectTopic(topic)}
                               >
                                 <div className="flex items-start justify-between mb-2">
@@ -2334,16 +2332,16 @@ export function UpdateGameEtapa2() {
                                     <Trash2 className="w-4 h-4 text-red-500" />
                                   </Button>
                                 </div>
-                                <h3 className="font-semibold text-blue-900 mb-1">{topic.name}</h3>
+                                <h3 className="font-bold text-slate-800 mb-1 text-sm" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{topic.name}</h3>
                                 {topic.description && (
                                   <p className="text-xs text-gray-600 line-clamp-2">{topic.description}</p>
                                 )}
                                 <div className="mt-2 flex items-center gap-2">
-                                  <span className="text-xs text-gray-500">
+                                  <span className="text-xs text-slate-500">
                                     {topic.faculties?.length || 0} carreras
                                   </span>
-                                  <span className="text-xs text-gray-500">���</span>
-                                  <span className="text-xs text-gray-500">
+                                  <span className="text-xs text-slate-500">���</span>
+                                  <span className="text-xs text-slate-500">
                                     {topic.challenges?.length || 0} desafíos
                                   </span>
                                 </div>
@@ -2362,16 +2360,16 @@ export function UpdateGameEtapa2() {
                     selectedActivity.name?.toLowerCase().includes('presentaci+�n') || 
                     selectedActivity.name?.toLowerCase().includes('presentacion')
                   ) && (
-                    <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
-                      <div className="flex items-center gap-2 mb-4">
-                        <Clock className="w-5 h-5 text-blue-900" />
-                        <Label className="text-blue-900 font-semibold">
+                    <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-6">
+                      <div className="flex items-center gap-2 mb-4 pb-3 border-b border-slate-100">
+                        <Clock className="w-5 h-5 text-indigo-600" />
+                        <Label className="text-slate-800 font-bold text-base" style={{ fontFamily: 'Unbounded, sans-serif' }}>
                           Temporizador
                         </Label>
                       </div>
                       <div className="grid grid-cols-2 gap-4">
                         <div>
-                          <Label htmlFor="timer_minutes" className="text-sm text-gray-700 mb-2 block">
+                          <Label htmlFor="timer_minutes" className="text-sm text-slate-600 font-medium mb-2 block">
                             Minutos
                           </Label>
                           <Input
@@ -2384,7 +2382,7 @@ export function UpdateGameEtapa2() {
                           />
                         </div>
                         <div>
-                          <Label htmlFor="timer_seconds" className="text-sm text-gray-700 mb-2 block">
+                          <Label htmlFor="timer_seconds" className="text-sm text-slate-600 font-medium mb-2 block">
                             Segundos
                           </Label>
                           <Input
@@ -2398,19 +2396,19 @@ export function UpdateGameEtapa2() {
                               setTimerSeconds(value);
                             }}
                           />
-                          <p className="text-xs text-gray-500 mt-1">
+                          <p className="text-xs text-slate-500 mt-1">
                             0-59 segundos
                           </p>
                         </div>
                       </div>
                       {timerMinutes > 0 || timerSeconds > 0 ? (
-                        <div className="mt-4 bg-white rounded-lg p-3 border border-gray-200">
-                          <p className="text-xs text-gray-600 mb-1">Duración total:</p>
-                          <p className="text-lg font-bold text-blue-900">
+                        <div className="mt-4 bg-indigo-50 rounded-xl p-4 border border-indigo-100">
+                          <p className="text-xs text-indigo-600 font-semibold mb-1" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Duración total:</p>
+                          <p className="text-2xl font-black text-indigo-700" style={{ fontFamily: 'Unbounded, sans-serif' }}>
                             {String(Math.floor((timerMinutes * 60 + timerSeconds) / 60)).padStart(2, '0')}:
                             {String((timerMinutes * 60 + timerSeconds) % 60).padStart(2, '0')}
                           </p>
-                          <p className="text-xs text-gray-500 mt-1">
+                          <p className="text-xs text-slate-500 mt-1">
                             ({timerMinutes * 60 + timerSeconds} segundos)
                           </p>
                         </div>
@@ -2426,10 +2424,10 @@ export function UpdateGameEtapa2() {
                   {selectedActivity && (
                     (selectedActivity.name?.toLowerCase().includes('presentaci+�n') || 
                      selectedActivity.name?.toLowerCase().includes('presentacion')) && (
-                      <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
-                        <div className="flex items-center gap-2 mb-4">
-                          <Clock className="w-5 h-5 text-blue-900" />
-                          <Label className="text-blue-900 font-semibold">
+                      <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-6">
+                        <div className="flex items-center gap-2 mb-4 pb-3 border-b border-slate-100">
+                          <Clock className="w-5 h-5 text-indigo-600" />
+                          <Label className="text-slate-800 font-bold text-base" style={{ fontFamily: 'Unbounded, sans-serif' }}>
                             Temporizador
                           </Label>
                         </div>
@@ -2438,7 +2436,7 @@ export function UpdateGameEtapa2() {
                         </p>
                         <div className="grid grid-cols-2 gap-4">
                           <div>
-                            <Label htmlFor="presentation_timer_minutes" className="text-sm text-gray-700 mb-2 block">
+                            <Label htmlFor="presentation_timer_minutes" className="text-sm text-slate-600 font-medium mb-2 block">
                               Minutos
                             </Label>
                             <Input
@@ -2451,7 +2449,7 @@ export function UpdateGameEtapa2() {
                             />
                           </div>
                           <div>
-                            <Label htmlFor="presentation_timer_seconds" className="text-sm text-gray-700 mb-2 block">
+                            <Label htmlFor="presentation_timer_seconds" className="text-sm text-slate-600 font-medium mb-2 block">
                               Segundos
                             </Label>
                             <Input
@@ -2465,18 +2463,18 @@ export function UpdateGameEtapa2() {
                                 setPresentationTimerSeconds(value);
                               }}
                             />
-                            <p className="text-xs text-gray-500 mt-1">
+                            <p className="text-xs text-slate-500 mt-1">
                               0-59 segundos
                             </p>
                           </div>
                         </div>
-                        <div className="mt-4 bg-white rounded-lg p-3 border border-blue-200">
-                          <p className="text-xs text-gray-600 mb-1">Duración total por presentación:</p>
-                          <p className="text-lg font-bold text-blue-900">
+                        <div className="mt-4 bg-indigo-50 rounded-xl p-4 border border-indigo-100">
+                          <p className="text-xs text-indigo-600 font-semibold mb-1" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Duración total por presentación:</p>
+                          <p className="text-2xl font-black text-indigo-700" style={{ fontFamily: 'Unbounded, sans-serif' }}>
                             {String(presentationTimerMinutes).padStart(2, '0')}:
                             {String(presentationTimerSeconds).padStart(2, '0')}
                           </p>
-                          <p className="text-xs text-gray-500 mt-1">
+                          <p className="text-xs text-slate-500 mt-1">
                             ({presentationTimerMinutes * 60 + presentationTimerSeconds} segundos)
                           </p>
                         </div>
@@ -2485,7 +2483,7 @@ export function UpdateGameEtapa2() {
                   )}
 
                   {/* Botones */}
-                  <div className="flex gap-3 justify-end pt-4 border-t">
+                  <div className="flex gap-3 justify-end pt-5 border-t border-slate-100">
                     <Button
                       onClick={handleBackToActivities}
                       variant="outline"
@@ -2497,7 +2495,7 @@ export function UpdateGameEtapa2() {
                     <Button
                       onClick={handleSaveActivity}
                       disabled={savingActivity}
-                      className="px-6 bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white"
+                      className="px-6 bg-indigo-600 hover:bg-indigo-700 text-white"
                     >
                       {savingActivity ? (
                         <>

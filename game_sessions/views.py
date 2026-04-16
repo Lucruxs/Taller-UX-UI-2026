@@ -2373,6 +2373,40 @@ class GameSessionViewSet(viewsets.ModelViewSet):
             'connected_teams': sum(1 for team in teams if team.tablet_connections.filter(disconnected_at__isnull=True).exists())
         })
 
+    @action(detail=True, methods=['get'], url_path='etapa/(?P<etapa_id>[^/.]+)')
+    def etapa(self, request, pk=None, etapa_id=None):
+        """
+        Obtener detalles de una etapa y sus actividades para una sesión dada.
+        Retorna 404 controlado si la etapa no existe o no está vinculada a la sesión.
+        """
+        try:
+            game_session = GameSession.objects.get(id=pk)
+        except GameSession.DoesNotExist:
+            return Response(
+                {'error': 'Sesión no encontrada.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        from challenges.models import Stage
+        from challenges.serializers import ActivitySerializer
+
+        try:
+            etapa = Stage.objects.get(id=etapa_id)
+        except Stage.DoesNotExist:
+            return Response(
+                {'error': 'La etapa solicitada no ha sido creada o no existe en esta sesión.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        actividades = etapa.activities.filter(is_active=True).order_by('order_number')
+        serializer = ActivitySerializer(actividades, many=True)
+
+        return Response({
+            'etapa_id': etapa.id,
+            'etapa_nombre': etapa.name,
+            'actividades': serializer.data,
+        })
+
 
 class TeamViewSet(viewsets.ModelViewSet):
     """

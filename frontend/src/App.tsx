@@ -1,4 +1,5 @@
 import { Routes, Route, Navigate, useParams } from 'react-router-dom';
+import { Toaster } from 'sonner';
 import { ProfesorLogin } from './pages/profesor/Login';
 import { ProfesorRegistro } from './pages/profesor/Registro';
 import { ProfesorPanel } from './pages/profesor/Panel';
@@ -52,6 +53,8 @@ function RedirectToSeleccionarTema() {
 
 function App() {
   return (
+    <>
+    <Toaster position="top-right" richColors duration={4000} />
     <Routes>
       <Route path="/" element={<Navigate to="/tablet/join" replace />} />
       <Route path="/login" element={<Navigate to="/profesor/login" replace />} />
@@ -115,6 +118,7 @@ function App() {
       <Route path="/tablet/reflexion" element={<TabletReflexion />} />
       <Route path="/evaluacion/:roomCode" element={<FormularioEvaluacion />} />
     </Routes>
+    </>
   );
 }
 

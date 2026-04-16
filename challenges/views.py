@@ -60,7 +60,7 @@ class ActivityViewSet(viewsets.ModelViewSet):
     serializer_class = ActivitySerializer
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['stage', 'activity_type', 'is_active']
+    filterset_fields = ['activity_type', 'is_active']
     search_fields = ['name', 'description']
     ordering_fields = ['order_number', 'name']
     ordering = ['stage', 'order_number']

@@ -255,7 +255,8 @@ export function ProfesorPersonalizacion() {
           }, 1500);
         } else {
           setTimeout(() => {
-            loadGameControl();
+            setAdvancing(false);
+            determineAndRedirect(data);
           }, 1500);
         }
       }
