@@ -4,6 +4,8 @@ import { motion } from 'framer-motion';
 import { Loader2, ArrowRight } from 'lucide-react';
 import { sessionsAPI } from '@/services';
 import { toast } from 'sonner';
+import { GalacticPage } from '@/components/GalacticPage';
+import { GlassCard } from '@/components/GlassCard';
 
 interface GameSession {
   id: number;
@@ -121,92 +123,65 @@ export function ProfesorInstructivo() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#F5F0E8]">
-        <Loader2 className="w-8 h-8 animate-spin text-slate-400" />
-      </div>
+      <GalacticPage className="items-center justify-center">
+        <Loader2 className="w-12 h-12 animate-spin" style={{ color: '#c026d3' }} />
+      </GalacticPage>
     );
   }
 
   if (!gameSession) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#F5F0E8]">
-        <div className="text-center bg-white rounded-3xl shadow-sm p-8 max-w-sm mx-4">
-          <p className="text-lg font-semibold text-slate-700 mb-4">Error al cargar la sesión</p>
+      <GalacticPage className="items-center justify-center">
+        <GlassCard style={{ padding: 32, textAlign: 'center', maxWidth: 400 }}>
+          <p style={{ fontFamily: "'Exo 2',sans-serif", fontSize: 18, color: 'rgba(255,255,255,0.8)', marginBottom: 16 }}>Error al cargar la sesión</p>
           <button
             onClick={() => navigate('/profesor/panel')}
-            className="bg-slate-900 text-white px-6 py-3 rounded-xl font-medium hover:bg-slate-800 transition-colors"
+            className="btn-galactic-primary"
+            style={{ width: '100%' }}
           >
             Volver al Panel
           </button>
-        </div>
-      </div>
+        </GlassCard>
+      </GalacticPage>
     );
   }
 
   return (
-    <div
-      className="min-h-screen bg-[#F5F0E8] flex flex-col"
-      style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}
-    >
-      {/* Header con logo */}
-      <header className="p-6 flex justify-between items-center flex-shrink-0">
+    <GalacticPage>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24, paddingBottom: 16, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
         <div>
-          <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400 mb-0.5">
-            Etapa 1 — Trabajo en Equipo
-          </p>
-          <h1
-            className="text-xl sm:text-2xl font-black text-slate-900"
-            style={{ fontFamily: 'Unbounded, sans-serif' }}
-          >
-            Instructivo
-          </h1>
+          <div className="galactic-label" style={{ fontSize: 12, marginBottom: 4 }}>Control de Misión · Etapa 1</div>
+          <div style={{ fontFamily: "'Orbitron',sans-serif", fontSize: 28, fontWeight: 700, color: '#fff', textShadow: '0 0 24px rgba(192,38,211,0.5)' }}>
+            Trabajo en Equipo
+          </div>
         </div>
-        <img
-          src="/images/UDD-negro.png"
-          alt="Logo UDD"
-          className="h-8 sm:h-10 w-auto object-contain opacity-80"
-        />
-      </header>
+        <div className="galactic-badge" style={{ fontSize: 13 }}>Instructivo</div>
+      </div>
 
-      {/* Tarjeta principal */}
-      <div className="flex-1 flex flex-col px-4 pb-6 min-h-0">
-        <motion.div
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3 }}
-          className="bg-white rounded-3xl shadow-sm p-4 sm:p-6 w-full max-w-5xl mx-auto flex flex-col flex-1 min-h-0"
-        >
-          {/* iframe */}
-          <div className="flex-1 rounded-2xl overflow-hidden bg-black min-h-0">
+      <GlassCard style={{ flex: 1, padding: 16, overflow: 'hidden', marginBottom: 24 }}>
+        <div style={{ flex: 1, borderRadius: 12, overflow: 'hidden', background: '#000', minHeight: 320, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          {videoUrl && !videoUrl.includes('VIDEO_ID_AQUI') ? (
             <iframe
-              src={`${videoUrl}?autoplay=0&mute=0&controls=1&rel=0&modestbranding=1`}
+              src={`${videoUrl}?autoplay=0&controls=1&rel=0`}
               title="Instructivo del Juego"
-              className="w-full h-full"
+              style={{ width: '100%', height: '100%', minHeight: 320 }}
               allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
               allowFullScreen
             />
-          </div>
-
-          {/* Footer de la tarjeta */}
-          <div className="flex items-center justify-between mt-5 flex-shrink-0">
-            <p className="text-slate-500 font-medium text-sm">
-              Los estudiantes están viendo el instructivo del juego en sus dispositivos.
+          ) : (
+            <p style={{ fontFamily: "'Exo 2',sans-serif", fontSize: 18, color: 'rgba(255,255,255,0.4)' }}>
+              Video próximamente
             </p>
-            <button
-              onClick={handleNextActivity}
-              disabled={advancing}
-              className="mt-0 inline-flex items-center gap-2 bg-slate-900 text-white hover:bg-slate-800 rounded-xl px-8 py-3 font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0 ml-4"
-            >
-              {advancing ? (
-                <><Loader2 className="w-4 h-4 animate-spin" /> Avanzando…</>
-              ) : (
-                <>Continuar <ArrowRight className="w-4 h-4" /></>
-              )}
-            </button>
-          </div>
-        </motion.div>
+          )}
+        </div>
+      </GlassCard>
+
+      <div style={{ display: 'flex', justifyContent: 'center', gap: 16 }}>
+        <button className="btn-galactic-primary" onClick={handleNextActivity} disabled={advancing}>
+          {advancing ? 'Avanzando...' : 'Avanzar Actividad ▶'}
+        </button>
       </div>
-    </div>
+    </GalacticPage>
   );
 }
 

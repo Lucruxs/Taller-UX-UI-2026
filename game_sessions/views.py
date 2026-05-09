@@ -1959,7 +1959,7 @@ class GameSessionViewSet(viewsets.ModelViewSet):
             'teams_results': results
         })
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], parser_classes=[JSONParser])
     def next_stage(self, request, pk=None):
         """
         Avanzar a la siguiente etapa
@@ -1993,19 +1993,20 @@ class GameSessionViewSet(viewsets.ModelViewSet):
         
         # Actualizar etapa actual
         game_session.current_stage = next_stage
-        
+
         # Obtener la primera actividad de la nueva etapa
         from challenges.models import Activity
         first_activity = Activity.objects.filter(
             stage=next_stage,
             is_active=True
         ).order_by('order_number').first()
-        
+
         if first_activity:
             game_session.current_activity = first_activity
         else:
             game_session.current_activity = None
-        
+
+        game_session.show_results_stage = 0
         game_session.save()
         
         # Crear SessionStage para la nueva etapa
@@ -2056,6 +2057,24 @@ class GameSessionViewSet(viewsets.ModelViewSet):
             'message': f'Avanzando a Etapa {next_stage.number}: {next_stage.name}',
             'next_stage_number': next_stage.number
         })
+
+    @action(detail=True, methods=['post'], parser_classes=[JSONParser])
+    def show_results(self, request, pk=None):
+        """
+        Activar/desactivar la pantalla de resultados en tablets.
+        Payload: {"stage": 1-4} para activar, {"stage": 0} para limpiar.
+        """
+        game_session = self.get_object()
+        stage = request.data.get('stage', 0)
+        try:
+            stage = int(stage)
+        except (TypeError, ValueError):
+            return Response({'error': 'stage debe ser un entero 0-4'}, status=status.HTTP_400_BAD_REQUEST)
+        if stage < 0 or stage > 4:
+            return Response({'error': 'stage debe estar entre 0 y 4'}, status=status.HTTP_400_BAD_REQUEST)
+        game_session.show_results_stage = stage
+        game_session.save(update_fields=['show_results_stage'])
+        return Response({'show_results_stage': game_session.show_results_stage})
 
     @action(detail=True, methods=['post'], parser_classes=[JSONParser])
     def end(self, request, pk=None):
@@ -4549,14 +4568,18 @@ class TeamActivityProgressViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['post'], permission_classes=[], authentication_classes=[])
     def upload_prototype(self, request):
         """
-        Subir imagen del prototipo Lego
-        No requiere autenticación (para tablets)
-        
+        Subir imagen del prototipo Lego y guardar nombre/tagline del producto.
+        No requiere autenticación (para tablets).
+
         Requiere:
         - team: ID del equipo
         - activity: ID de la actividad
         - session_stage: ID de la etapa de sesión
-        - image: Archivo de imagen (FormData)
+
+        Opcional:
+        - image: Archivo de imagen (FormData) — puede omitirse si el equipo saltó la foto
+        - product_name: Nombre del producto (se guarda en response_data)
+        - product_tagline: Frase descriptiva del producto (se guarda en response_data)
         """
         team_id = request.data.get('team')
         activity_id = request.data.get('activity')
@@ -4569,14 +4592,8 @@ class TeamActivityProgressViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        if not image_file:
-            return Response(
-                {'error': 'Se requiere un archivo de imagen'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
         # Validar tamaño de archivo (5MB máximo)
-        if image_file.size > settings.IMAGE_UPLOAD_MAX_SIZE:
+        if image_file and image_file.size > settings.IMAGE_UPLOAD_MAX_SIZE:
             return Response(
                 {'error': f'El archivo es demasiado grande. Máximo: {settings.IMAGE_UPLOAD_MAX_SIZE / 1024 / 1024}MB'},
                 status=status.HTTP_400_BAD_REQUEST
@@ -4584,7 +4601,7 @@ class TeamActivityProgressViewSet(viewsets.ModelViewSet):
         
         # Validar tipo de archivo
         allowed_types = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp']
-        if image_file.content_type not in allowed_types:
+        if image_file and image_file.content_type not in allowed_types:
             return Response(
                 {'error': 'Tipo de archivo no permitido. Use JPEG, PNG o WEBP'},
                 status=status.HTTP_400_BAD_REQUEST
@@ -4610,61 +4627,72 @@ class TeamActivityProgressViewSet(viewsets.ModelViewSet):
                 }
             )
             
-            # Procesar y guardar imagen
-            try:
-                # Abrir imagen con PIL para validar y optimizar
-                img = Image.open(image_file)
-                
-                # Convertir a RGB si es necesario (para JPEG)
-                if img.mode in ('RGBA', 'LA', 'P'):
-                    background = Image.new('RGB', img.size, (255, 255, 255))
-                    if img.mode == 'P':
-                        img = img.convert('RGBA')
-                    background.paste(img, mask=img.split()[-1] if img.mode in ('RGBA', 'LA') else None)
-                    img = background
-                
-                # Redimensionar si es muy grande (máximo 1920x1920)
-                max_size = (1920, 1920)
-                if img.size[0] > max_size[0] or img.size[1] > max_size[1]:
-                    img.thumbnail(max_size, Image.Resampling.LANCZOS)
-                
-                # Guardar en buffer
-                from io import BytesIO
-                buffer = BytesIO()
-                img_format = 'JPEG'
-                img.save(buffer, format=img_format, quality=85, optimize=True)
-                buffer.seek(0)
-                
-                # Generar nombre único para el archivo
-                import uuid
-                file_extension = 'jpg'
-                filename = f'prototypes/{team.id}_{session_stage.id}_{uuid.uuid4().hex[:8]}.{file_extension}'
-                
-                # Guardar en el sistema de archivos
-                saved_path = default_storage.save(filename, ContentFile(buffer.read()))
-                
-                # Construir URL
-                image_url = f"{settings.MEDIA_URL}{saved_path}"
-                
-            except Exception as img_error:
-                return Response(
-                    {'error': f'Error al procesar imagen: {str(img_error)}'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
+            # Procesar y guardar imagen (opcional si se saltó la foto)
+            image_url = None
+            if image_file:
+                try:
+                    # Abrir imagen con PIL para validar y optimizar
+                    img = Image.open(image_file)
+
+                    # Convertir a RGB si es necesario (para JPEG)
+                    if img.mode in ('RGBA', 'LA', 'P'):
+                        background = Image.new('RGB', img.size, (255, 255, 255))
+                        if img.mode == 'P':
+                            img = img.convert('RGBA')
+                        background.paste(img, mask=img.split()[-1] if img.mode in ('RGBA', 'LA') else None)
+                        img = background
+
+                    # Redimensionar si es muy grande (máximo 1920x1920)
+                    max_size = (1920, 1920)
+                    if img.size[0] > max_size[0] or img.size[1] > max_size[1]:
+                        img.thumbnail(max_size, Image.Resampling.LANCZOS)
+
+                    # Guardar en buffer
+                    from io import BytesIO
+                    buffer = BytesIO()
+                    img.save(buffer, format='JPEG', quality=85, optimize=True)
+                    buffer.seek(0)
+
+                    # Generar nombre único para el archivo
+                    import uuid
+                    filename = f'prototypes/{team.id}_{session_stage.id}_{uuid.uuid4().hex[:8]}.jpg'
+
+                    # Guardar en el sistema de archivos
+                    saved_path = default_storage.save(filename, ContentFile(buffer.read()))
+                    image_url = f"{settings.MEDIA_URL}{saved_path}"
+
+                except Exception as img_error:
+                    return Response(
+                        {'error': f'Error al procesar imagen: {str(img_error)}'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
             
-            # Si ya había una imagen, eliminar la anterior
-            if progress.prototype_image_url and not created:
+            # Si ya había una imagen y se subió una nueva, eliminar la anterior
+            if image_file and progress.prototype_image_url and not created:
                 old_path = progress.prototype_image_url.replace(settings.MEDIA_URL, '')
                 if default_storage.exists(old_path):
                     default_storage.delete(old_path)
             
             # Actualizar progreso
-            progress.prototype_image_url = image_url
+            if image_url:
+                progress.prototype_image_url = image_url
             progress.status = 'submitted'
             progress.progress_percentage = 100
             if not progress.started_at:
                 progress.started_at = timezone.now()
             progress.completed_at = timezone.now()
+
+            # Guardar nombre y tagline del producto en response_data
+            product_name = request.data.get('product_name')
+            product_tagline = request.data.get('product_tagline')
+            if product_name is not None or product_tagline is not None:
+                existing = progress.response_data or {}
+                if product_name is not None:
+                    existing['product_name'] = product_name.strip()
+                if product_tagline is not None:
+                    existing['product_tagline'] = product_tagline.strip()
+                progress.response_data = existing
+
             progress.save()
             
             # Otorgar 15 tokens por subir el prototipo
@@ -4971,6 +4999,18 @@ class TabletConnectionViewSet(viewsets.ModelViewSet):
                 {'error': f'Error inesperado: {str(e)}'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+    @action(detail=True, methods=['patch'], permission_classes=[], authentication_classes=[])
+    def update_screen(self, request, pk=None):
+        """
+        Las tablets reportan su pantalla actual (sin autenticación).
+        Payload: {"screen": "results_1"} o {"screen": "lobby"}
+        """
+        connection = self.get_object()
+        screen = request.data.get('screen', '')
+        connection.current_screen = str(screen)[:50]
+        connection.save(update_fields=['current_screen'])
+        return Response({'current_screen': connection.current_screen})
 
     @action(detail=True, methods=['post'])
     def disconnect(self, request, pk=None):

@@ -38,12 +38,15 @@ import { TabletPersonalizacion } from './pages/tablets/etapa1/Personalizacion';
 import { TabletPresentacion } from './pages/tablets/etapa1/Presentacion';
 import { TabletMinijuego } from './pages/tablets/etapa1/Minijuego';
 import { TabletResultadosEtapa1 } from './pages/tablets/etapa1/Resultados';
-import { TabletSeleccionarTemaDesafio } from './pages/tablets/etapa2/SeleccionarTemaDesafio';
-import { TabletBubbleMap } from './pages/tablets/etapa2/BubbleMap';
-import { TabletPrototipo } from './pages/tablets/etapa3/Prototipo';
+import { TabletSeleccionarTemaDesafioV2 } from './pages/tablets/etapa2/SeleccionarTemaDesafioV2';
+import { TabletBubbleMapV2 } from './pages/tablets/etapa2/BubbleMapV2';
+import { TabletPrototipoV2 } from './pages/tablets/etapa3/PrototipoV2';
 import { TabletFormularioPitch } from './pages/tablets/etapa4/FormularioPitch';
 import { TabletPresentacionPitch } from './pages/tablets/etapa4/PresentacionPitch';
 import { TabletReflexion } from './pages/tablets/Reflexion';
+import { SpaceWarpTransition } from './pages/tablets/SpaceWarpTransition';
+import { PlanetLandingTransition } from './pages/tablets/PlanetLandingTransition';
+import { MapaGalactico } from './pages/tablets/MapaGalactico';
 import { FormularioEvaluacion } from './pages/evaluacion/Formulario';
 
 function RedirectToSeleccionarTema() {
@@ -100,8 +103,11 @@ function App() {
       <Route path="/tablet/join/:roomCode" element={<TabletJoin />} />
       <Route path="/tablet/lobby" element={<TabletLobby />} />
       <Route path="/tablet/loading" element={<TabletLoadingScreen />} />
+      <Route path="/tablet/etapa-warp" element={<SpaceWarpTransition />} />
+      <Route path="/tablet/etapa-transition" element={<PlanetLandingTransition />} />
+      <Route path="/tablet/mapa-galactico" element={<MapaGalactico />} />
       <Route path="/tablet/etapa1/video-institucional" element={<TabletVideoInstitucional />} />
-      <Route path="/tablet/instructivo" element={<TabletInstructivo />} />
+      <Route path="/tablet/etapa1/instructivo" element={<TabletInstructivo />} />
       <Route path="/tablet/etapa1/personalizacion" element={<TabletPersonalizacion />} />
       <Route path="/tablet/etapa1/presentacion" element={<TabletPresentacion />} />
       <Route path="/tablet/etapa1/minijuego" element={<TabletMinijuego />} />
@@ -110,13 +116,14 @@ function App() {
       <Route path="/tablet/etapa2/resultados" element={<TabletResultadosEtapa1 />} />
       <Route path="/tablet/etapa3/resultados" element={<TabletResultadosEtapa1 />} />
       <Route path="/tablet/etapa4/resultados" element={<TabletResultadosEtapa1 />} />
-      <Route path="/tablet/etapa2/seleccionar-tema" element={<TabletSeleccionarTemaDesafio />} />
-      <Route path="/tablet/etapa2/bubble-map" element={<TabletBubbleMap />} />
-      <Route path="/tablet/etapa3/prototipo" element={<TabletPrototipo />} />
+      <Route path="/tablet/etapa2/seleccionar-tema" element={<TabletSeleccionarTemaDesafioV2 />} />
+      <Route path="/tablet/etapa2/bubble-map" element={<TabletBubbleMapV2 />} />
+      <Route path="/tablet/etapa3/prototipo" element={<TabletPrototipoV2 />} />
       <Route path="/tablet/etapa4/formulario-pitch" element={<TabletFormularioPitch />} />
       <Route path="/tablet/etapa4/presentacion-pitch" element={<TabletPresentacionPitch />} />
       <Route path="/tablet/reflexion" element={<TabletReflexion />} />
       <Route path="/evaluacion/:roomCode" element={<FormularioEvaluacion />} />
+      <Route path="*" element={<Navigate to="/tablet/join" replace />} />
     </Routes>
     </>
   );

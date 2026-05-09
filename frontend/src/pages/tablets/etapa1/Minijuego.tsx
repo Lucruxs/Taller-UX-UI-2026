@@ -6,12 +6,16 @@ import { Button } from '@/components/ui/button';
 import { UBotMinijuegoModal } from '@/components/UBotMinijuegoModal';
 import { toast } from 'sonner';
 import { tabletConnectionsAPI, sessionsAPI, teamPersonalizationsAPI, teamActivityProgressAPI } from '@/services';
+import { advanceActivityOnTimerExpiration } from '@/utils/timerAutoAdvance';
+import { getResultsRedirectUrl } from '@/utils/tabletResultsRedirect';
 import { AnagramGame } from '@/components/minigames/AnagramGame';
 import { WordSearchGame } from '@/components/minigames/WordSearchGame';
 import { GeneralKnowledgeQuiz } from '@/components/minigames/GeneralKnowledgeQuiz';
 import { parseMinigameConfig } from '@/components/minigames/MinigameSelector';
 import { MinigameType, AnyMinigameData, WordSearchData } from '@/components/minigames/types';
 import { challengesAPI } from '@/services';
+import { GalacticPage } from '@/components/GalacticPage';
+import { GlassCard } from '@/components/GlassCard';
 
 interface Team {
   id: number;
@@ -117,6 +121,9 @@ export function TabletMinijuego() {
       const gameData = lobbyData.game_session;
       const sessionId = statusData.game_session.id;
 
+      const resultsUrl = getResultsRedirectUrl(gameData, connId);
+      if (resultsUrl) { window.location.href = resultsUrl; return; }
+
 
       // Verificar si el juego ha finalizado o está en lobby
       if (gameData.status === 'finished' || gameData.status === 'completed') {
@@ -162,18 +169,9 @@ export function TabletMinijuego() {
 
       setCurrentActivityId(gameData.current_activity);
 
-      // Obtener session_stage
-      if (!currentSessionStageId) {
-        const stagesResponse = await fetch(
-          `${import.meta.env.VITE_API_URL || 'http://localhost:8000/api'}/sessions/session-stages/?game_session=${statusData.game_session.id}`
-        );
-        if (stagesResponse.ok) {
-          const stagesData = await stagesResponse.json();
-          const stages = Array.isArray(stagesData.results) ? stagesData.results : (Array.isArray(stagesData) ? stagesData : []);
-          if (stages.length > 0) {
-            setCurrentSessionStageId(stages[0].id);
-          }
-        }
+      // Obtener session_stage desde lobby data (ya disponible, sin fetch extra)
+      if (!currentSessionStageId && gameData.current_session_stage) {
+        setCurrentSessionStageId(gameData.current_session_stage);
       }
 
       // Mostrar modal de U-Bot automáticamente si no se ha visto
@@ -201,7 +199,7 @@ export function TabletMinijuego() {
       // Cargar actividad del minijuego DESPUÉS de restaurar progreso
       // Solo cargar si no hay minigameData Y no estamos en anagram o general_knowledge (esos se cargan con switchToPart o checkExistingProgress)
       if (gameData.current_activity && !minigameData && statusData.team?.id && !loadingMinijuegoRef.current && currentPart === 'word_search' && !minigameDataLoadedRef.current) {
-        await loadMinijuegoActivity(gameData.current_activity, statusData.team.id, statusData.game_session.id);
+        await loadMinijuegoActivity(gameData.current_activity, statusData.team.id, gameData.current_session_stage);
       }
 
       // Iniciar temporizador
@@ -236,7 +234,7 @@ export function TabletMinijuego() {
   const progressCheckedRef = useRef(false);
   const minigameDataLoadedRef = useRef(false); // Ref para rastrear si ya se cargó inicialmente
 
-  const loadMinijuegoActivity = async (activityId: number, teamId: number, gameSessionIdParam?: number) => {
+  const loadMinijuegoActivity = async (activityId: number, teamId: number, sessionStageIdParam?: number | null) => {
     // Protecciones para evitar cargas múltiples
     if (minigameDataLoadedRef.current || loadingMinijuegoRef.current || minigameData || currentPart === 'general_knowledge') {
       return;
@@ -253,29 +251,9 @@ export function TabletMinijuego() {
     }
     
     loadingMinijuegoRef.current = true;
-    minigameDataLoadedRef.current = true;
     setLoading(true);
     try {
-      // Verificar progreso existente para determinar qué parte mostrar
-      // Primero intentar obtener session_stage_id
-      let sessionStageId: number | null = null;
-      const sessionIdToUse = gameSessionIdParam || gameSessionId;
-      if (sessionIdToUse) {
-        try {
-          const stagesResponse = await fetch(
-            `${import.meta.env.VITE_API_URL || 'http://localhost:8000/api'}/sessions/session-stages/?game_session=${sessionIdToUse}`
-          );
-          if (stagesResponse.ok) {
-            const stagesData = await stagesResponse.json();
-            const stages = Array.isArray(stagesData.results) ? stagesData.results : (Array.isArray(stagesData) ? stagesData : []);
-            if (stages.length > 0) {
-              sessionStageId = stages[0].id;
-            }
-          }
-        } catch (e) {
-          console.error('Error getting session stage:', e);
-        }
-      }
+      const sessionStageId: number | null = sessionStageIdParam ?? currentSessionStageId ?? null;
       
       // Obtener la actividad y el progreso en paralelo para optimizar la carga
       const [activityData, progressData] = await Promise.all([
@@ -658,6 +636,7 @@ export function TabletMinijuego() {
     } catch (error: any) {
       console.error('Error loading minijuego activity:', error);
       toast.error('Error al cargar la actividad: ' + (error.message || 'Error desconocido'));
+      minigameDataLoadedRef.current = false;
       setLoading(false);
     } finally {
       loadingMinijuegoRef.current = false;
@@ -988,7 +967,10 @@ export function TabletMinijuego() {
 
       if (remaining <= 0) {
         setTimerRemaining('00:00');
-        timeExpiredRef.current = true;
+        if (!timeExpiredRef.current) {
+          timeExpiredRef.current = true;
+          void advanceActivityOnTimerExpiration(gameSessionId);
+        }
         return;
       }
 
@@ -1007,7 +989,10 @@ export function TabletMinijuego() {
             timerIntervalRef.current = null;
           }
           setTimerRemaining('00:00');
-          timeExpiredRef.current = true;
+          if (!timeExpiredRef.current) {
+            timeExpiredRef.current = true;
+            void advanceActivityOnTimerExpiration(gameSessionId);
+          }
         }
       };
 
@@ -1255,9 +1240,9 @@ export function TabletMinijuego() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#093c92] via-blue-600 to-[#f757ac]">
-        <Loader2 className="w-8 h-8 animate-spin text-white" />
-      </div>
+      <GalacticPage className="items-center justify-center">
+        <Loader2 className="w-12 h-12 animate-spin" style={{ color: '#c026d3' }} />
+      </GalacticPage>
     );
   }
 
@@ -1640,167 +1625,101 @@ export function TabletMinijuego() {
     : false;
 
   return (
-    <div className="relative min-h-screen overflow-hidden flex flex-col">
-      {/* Fondo animado igual que Panel */}
-      <div className="absolute inset-0 bg-gradient-to-br from-[#093c92] via-blue-600 to-[#f757ac]">
-        <motion.div
-          animate={{
-            backgroundPosition: ['0% 0%', '100% 100%'],
-          }}
-          transition={{
-            duration: 20,
-            repeat: Infinity,
-            repeatType: 'reverse',
-          }}
-          className="absolute inset-0 opacity-20"
-          style={{
-            backgroundImage: 'radial-gradient(circle, white 1px, transparent 1px)',
-            backgroundSize: '50px 50px',
-          }}
-        />
-        
-        {/* Efectos de partículas adicionales */}
-        <div className="absolute inset-0">
-          {[...Array(20)].map((_, i) => (
-            <motion.div
-              key={i}
-              className="absolute w-2 h-2 bg-white rounded-full opacity-30"
-              initial={{
-                x: Math.random() * (typeof window !== 'undefined' ? window.innerWidth : 1920),
-                y: Math.random() * (typeof window !== 'undefined' ? window.innerHeight : 1080),
-              }}
-              animate={{
-                y: [null, Math.random() * (typeof window !== 'undefined' ? window.innerHeight : 1080)],
-                opacity: [0.3, 0.6, 0.3],
-              }}
-              transition={{
-                duration: 3 + Math.random() * 2,
-                repeat: Infinity,
-                delay: Math.random() * 2,
-              }}
-            />
-          ))}
+    <GalacticPage padding="p-4 md:p-6">
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ width: 12, height: 12, borderRadius: '50%', background: team?.color || '#c026d3' }} />
+          <span style={{ fontFamily: "'Exo 2',sans-serif", fontSize: 16, fontWeight: 700, color: '#fff' }}>
+            {personalization?.team_name || team?.name || 'Mi Equipo'}
+          </span>
+        </div>
+        <div className="glass-card" style={{ padding: '6px 14px' }}>
+          <span style={{ fontFamily: "'Orbitron',sans-serif", fontSize: 13, color: '#fbbf24' }}>
+            ⭐ {team?.tokens_total ?? 0}
+          </span>
         </div>
       </div>
 
-      <div className="relative z-10 p-3 sm:p-4">
-        <div className="max-w-6xl mx-auto relative z-20">
-        {/* Header Mejorado */}
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-white/95 backdrop-blur-sm rounded-2xl sm:rounded-3xl shadow-2xl p-4 sm:p-6 mb-4 sm:mb-6 flex items-center justify-between flex-wrap gap-4"
-        >
-          <div className="flex items-center gap-3 sm:gap-4">
+      {/* Activity label */}
+      <div style={{ textAlign: 'center', marginBottom: 16 }}>
+        <div className="galactic-label" style={{ marginBottom: 4 }}>
+          {currentPart === 'word_search' ? 'Sopa de Letras' : currentPart === 'anagram' ? 'Anagrama' : 'Conocimiento General'}
+        </div>
+      </div>
+
+      {/* Game content */}
+      <GlassCard style={{ flex: 1, padding: 16, overflow: 'hidden' }}>
+        {allCompleted ? (
+          <div className="bg-green-50 border-2 border-green-400 rounded-lg p-6 sm:p-8 text-center">
+            <CheckCircle2 className="w-12 h-12 sm:w-16 sm:h-16 text-green-600 mx-auto mb-3" />
+            <p className="text-xl sm:text-2xl font-bold text-green-700 mb-2">¡Felicidades!</p>
+            <p className="text-green-800 text-sm sm:text-base">Has completado el minijuego</p>
+          </div>
+        ) : currentPart === 'word_search' && minigameData && minigameData.type === MinigameType.WORD_SEARCH && foundWords.length >= minigameData.words.length ? (
+          // Cuando se completa la sopa de letras, mostrar botón para continuar al anagrama
+          <motion.div 
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ duration: 0.6, ease: "easeOut" }}
+            className="bg-gradient-to-br from-green-50 to-emerald-50 border-2 border-green-400 rounded-lg p-6 sm:p-8 text-center relative overflow-hidden"
+          >
+            {/* Elementos decorativos animados */}
             <motion.div
-              whileHover={{ scale: 1.1, rotate: 5 }}
-              whileTap={{ scale: 0.95 }}
-              className="w-12 h-12 sm:w-14 sm:h-14 rounded-full flex items-center justify-center text-white text-lg sm:text-xl font-bold shadow-lg"
-              style={{ backgroundColor: getTeamColorHex(team.color) }}
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              transition={{ delay: 0.3, duration: 0.5, type: "spring", bounce: 0.4 }}
+              className="absolute top-4 right-4"
             >
-              {team.color.charAt(0).toUpperCase()}
+              <div className="text-4xl">🎉</div>
             </motion.div>
-            <div>
-              <h3 className="text-lg sm:text-xl font-bold text-gray-800">
-                {personalization?.team_name 
-                  ? `Start-up ${personalization.team_name}` 
-                  : `Start-up ${team.color}`}
-              </h3>
-              <p className="text-xs sm:text-sm text-gray-600">Equipo {team.color}</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <motion.button
-              onClick={() => setShowUBotModal(true)}
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              className="bg-gradient-to-r from-pink-500 to-pink-600 text-white px-5 py-2.5 rounded-full font-semibold text-sm sm:text-base flex items-center gap-2 shadow-lg"
-            >
-              <Bot className="w-4 h-4 sm:w-5 sm:h-5" />
-              <span>U-Bot</span>
-            </motion.button>
             <motion.div
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              className="bg-gradient-to-r from-[#093c92] to-blue-700 text-white px-5 py-2.5 rounded-full font-semibold text-sm sm:text-base flex items-center gap-2 shadow-lg"
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              transition={{ delay: 0.5, duration: 0.5, type: "spring", bounce: 0.4 }}
+              className="absolute bottom-4 left-4"
             >
-              <Coins className="w-4 h-4 sm:w-5 sm:h-5" /> {team.tokens_total || 0} Tokens
+              <div className="text-3xl">⭐</div>
             </motion.div>
-          </div>
-        </motion.div>
-
-        {/* Formulario Mejorado */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-white rounded-xl shadow-xl p-4 sm:p-6 relative"
-        >
-          {/* Temporizador en esquina superior derecha */}
-          <div className="absolute top-4 right-4 bg-yellow-50 border-2 border-yellow-300 rounded-lg px-3 py-2 shadow-sm">
-            <div className="flex items-center gap-2">
-              <Clock className="w-4 h-4 text-yellow-700" />
-              <span className="text-yellow-800 font-semibold text-sm sm:text-base">
-                <span className="font-bold">{timerRemaining}</span>
-              </span>
-            </div>
-          </div>
-
-          {/* Título y Descripción */}
-          <div className="mb-4 sm:mb-5 pr-24 sm:pr-32">
-            <h2 className="text-xl sm:text-2xl font-bold text-[#093c92] mb-2">
-              2. Presentación - Minijuego
-            </h2>
-            {currentGameType !== MinigameType.WORD_SEARCH && (
-              <p className="text-gray-600 text-sm">
-                Parte 2: Adivina las palabras desordenadas. Cada palabra correcta vale 1 token
-              </p>
-            )}
-          </div>
-
-          {/* Instrucciones */}
-          {currentGameType === MinigameType.ANAGRAMA && (
-            <div className="bg-blue-50 border-l-4 border-blue-400 rounded-lg p-3 sm:p-4 mb-4 sm:mb-5">
-              <p className="text-blue-800 font-semibold text-xs sm:text-sm">
-                Las palabras están desordenadas. Reordena las letras para formar la palabra correcta. Se enviará automáticamente cuando escribas la respuesta correcta.
-              </p>
-            </div>
-          )}
-          {currentGameType === MinigameType.WORD_SEARCH && (
-            <div className="bg-blue-50 border-l-4 border-blue-400 rounded-lg p-3 sm:p-4 mb-4 sm:mb-5">
-              <p className="text-blue-800 font-semibold text-xs sm:text-sm">
-                Desliza con el dedo sobre las letras para seleccionar palabras. Puedes buscar en <strong>horizontal</strong>, <strong>vertical</strong> o <strong>diagonal</strong> (en cualquier dirección). Se marcará automáticamente cuando encuentres una palabra correcta.
-              </p>
-            </div>
-          )}
-
-          {/* Progreso - Solo mostrar para anagrama, NO para general_knowledge */}
-          {currentPart === 'anagram' && !allCompleted && minigameData && minigameData.type === MinigameType.ANAGRAMA && currentGameIndex < minigameData.words.length && (
-            <div className="text-center mb-4 sm:mb-5 text-gray-700 font-semibold text-sm sm:text-base">
-              Palabra <span className="text-[#093c92]">{Math.min(currentGameIndex + 1, minigameData.words.length)}</span> de{' '}
-              <span className="text-[#093c92]">{minigameData.words.length}</span>
-            </div>
-          )}
-
-          {/* Juego */}
-          {allCompleted ? (
-            <div className="bg-green-50 border-2 border-green-400 rounded-lg p-6 sm:p-8 text-center">
-              <CheckCircle2 className="w-12 h-12 sm:w-16 sm:h-16 text-green-600 mx-auto mb-3" />
-              <p className="text-xl sm:text-2xl font-bold text-green-700 mb-2">¡Felicidades!</p>
-              <p className="text-green-800 text-sm sm:text-base">Has completado el minijuego</p>
-            </div>
-          ) : currentPart === 'word_search' && minigameData && minigameData.type === MinigameType.WORD_SEARCH && foundWords.length >= minigameData.words.length ? (
-            // Cuando se completa la sopa de letras, mostrar botón para continuar al anagrama
-            <div className="bg-green-50 border-2 border-green-400 rounded-lg p-6 sm:p-8 text-center">
-              <CheckCircle2 className="w-12 h-12 sm:w-16 sm:h-16 text-green-600 mx-auto mb-4" />
-              <p className="text-xl sm:text-2xl font-bold text-green-700 mb-2">¡Parte 1 Completada!</p>
-              <p className="text-green-800 text-sm sm:text-base mb-6">Has encontrado todas las palabras en la sopa de letras</p>
+            
+            <motion.div
+              initial={{ y: 20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ delay: 0.2, duration: 0.5 }}
+            >
+              <CheckCircle2 className="w-16 h-16 sm:w-20 sm:h-20 text-green-600 mx-auto mb-4 drop-shadow-lg" />
+            </motion.div>
+            
+            <motion.p 
+              initial={{ y: 20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ delay: 0.4, duration: 0.5 }}
+              className="text-2xl sm:text-3xl font-bold text-green-700 mb-3 drop-shadow-sm"
+            >
+              ¡Parte 1 Completada!
+            </motion.p>
+            
+            <motion.p 
+              initial={{ y: 20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ delay: 0.6, duration: 0.5 }}
+              className="text-green-800 text-base sm:text-lg mb-8 font-medium"
+            >
+              Has encontrado todas las palabras en la sopa de letras
+            </motion.p>
+            
+            <motion.div
+              initial={{ y: 20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ delay: 0.8, duration: 0.5 }}
+            >
               <Button
                 onClick={async () => {
                   if (!team || !currentActivityId || !currentSessionStageId) {
                     toast.error('Error: faltan datos necesarios');
                     return;
                   }
-                  
+
                   // Marcar como completado en el backend
                   try {
                     const response = await fetch(
@@ -1825,10 +1744,10 @@ export function TabletMinijuego() {
                     if (response.ok) {
                       const data = await response.json();
                       toast.success(`¡Has completado la Parte 1: Sopa de Letras! ${data.tokens_earned || 0} tokens ganados`);
-                      
+
                       // Cambiar a la parte 2 (anagrama)
                       await switchToPart('anagram');
-                      
+
                       if (connectionId) {
                         loadGameState(connectionId);
                       }
@@ -1841,124 +1760,121 @@ export function TabletMinijuego() {
                     toast.error('Error al completar la sopa de letras');
                   }
                 }}
-                className="bg-[#093c92] hover:bg-[#072e73] text-white px-8 py-3 text-lg font-semibold rounded-lg shadow-md hover:shadow-lg transition-all"
+                className="bg-gradient-to-r from-[#093c92] to-[#0a4bc7] hover:from-[#072e73] hover:to-[#093c92] text-white px-10 py-4 text-xl font-bold rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
               >
-                Continuar a Parte 2: Anagrama
+                🚀 Continuar a Parte 2: Anagrama
               </Button>
+            </motion.div>
+          </motion.div>
+        ) : currentPart === 'general_knowledge' ? (
+          loadingGeneralKnowledge ? (
+            <div className="text-center text-gray-500">
+              <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4" />
+              <p>Cargando preguntas...</p>
             </div>
-          ) : currentPart === 'general_knowledge' ? (
-            loadingGeneralKnowledge ? (
-              <div className="text-center text-gray-500">
-                <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4" />
-                <p>Cargando preguntas...</p>
-              </div>
-            ) : generalKnowledgeQuestions.length > 0 ? (
-              <GeneralKnowledgeQuiz
-                questions={generalKnowledgeQuestions}
-                onComplete={handleGeneralKnowledgeComplete}
-                initialIndex={generalKnowledgeCurrentIndex}
-                initialSelectedAnswers={generalKnowledgeSelectedAnswers}
-                onProgressChange={async (currentIndex, selectedAnswers) => {
-                  const previousAnswers = new Map(generalKnowledgeSelectedAnswers);
-                  setGeneralKnowledgeCurrentIndex(currentIndex);
-                  setGeneralKnowledgeSelectedAnswers(selectedAnswers);
-                  
-                  // Enviar respuesta individual al backend inmediatamente para otorgar token si es correcta
-                  if (team?.id && currentActivityId && currentSessionStageId && generalKnowledgeQuestions.length > 0) {
-                    try {
-                      const result = findNewlyAnsweredQuestion(previousAnswers, selectedAnswers, generalKnowledgeQuestions);
-                      
-                      if (result && result.selected !== undefined && result.selected !== null) {
-                        // Enviar solo la respuesta que se acaba de dar
-                        const response = await fetch(
-                          `${import.meta.env.VITE_API_URL || 'http://localhost:8000/api'}/sessions/team-activity-progress/submit_general_knowledge/`,
-                          {
-                            method: 'POST',
-                            headers: {
-                              'Content-Type': 'application/json',
-                            },
-                            body: JSON.stringify({
-                              team: team.id,
-                              activity: currentActivityId,
-                              session_stage: currentSessionStageId,
-                              answers: [{
-                                question_id: result.question.id,
-                                selected: result.selected
-                              }],
-                            }),
-                          }
-                        );
-                        
-                        if (response.ok) {
-                          const data = await response.json();
-                          if (data.tokens_earned > 0) {
-                            toast.success(`✅ ¡Correcto! +${data.tokens_earned} token`, {
-                              duration: 3000,
-                            });
-                            // Actualizar tokens del equipo sin recargar toda la página
-                            if (connectionId) {
-                              const statusData = await tabletConnectionsAPI.getStatus(connectionId);
-                              if (statusData?.team?.tokens_total !== undefined) {
-                                setTeam(prev => prev ? { ...prev, tokens_total: statusData.team.tokens_total } : prev);
-                              }
+          ) : generalKnowledgeQuestions.length > 0 ? (
+            <GeneralKnowledgeQuiz
+              questions={generalKnowledgeQuestions}
+              onComplete={handleGeneralKnowledgeComplete}
+              initialIndex={generalKnowledgeCurrentIndex}
+              initialSelectedAnswers={generalKnowledgeSelectedAnswers}
+              onProgressChange={async (currentIndex, selectedAnswers) => {
+                const previousAnswers = new Map(generalKnowledgeSelectedAnswers);
+                setGeneralKnowledgeCurrentIndex(currentIndex);
+                setGeneralKnowledgeSelectedAnswers(selectedAnswers);
+
+                // Enviar respuesta individual al backend inmediatamente para otorgar token si es correcta
+                if (team?.id && currentActivityId && currentSessionStageId && generalKnowledgeQuestions.length > 0) {
+                  try {
+                    const result = findNewlyAnsweredQuestion(previousAnswers, selectedAnswers, generalKnowledgeQuestions);
+
+                    if (result && result.selected !== undefined && result.selected !== null) {
+                      // Enviar solo la respuesta que se acaba de dar
+                      const response = await fetch(
+                        `${import.meta.env.VITE_API_URL || 'http://localhost:8000/api'}/sessions/team-activity-progress/submit_general_knowledge/`,
+                        {
+                          method: 'POST',
+                          headers: {
+                            'Content-Type': 'application/json',
+                          },
+                          body: JSON.stringify({
+                            team: team.id,
+                            activity: currentActivityId,
+                            session_stage: currentSessionStageId,
+                            answers: [{
+                              question_id: result.question.id,
+                              selected: result.selected
+                            }],
+                          }),
+                        }
+                      );
+
+                      if (response.ok) {
+                        const data = await response.json();
+                        if (data.tokens_earned > 0) {
+                          toast.success(`✅ ¡Correcto! +${data.tokens_earned} token`, {
+                            duration: 3000,
+                          });
+                          // Actualizar tokens del equipo sin recargar toda la página
+                          if (connectionId) {
+                            const statusData = await tabletConnectionsAPI.getStatus(connectionId);
+                            if (statusData?.team?.tokens_total !== undefined) {
+                              setTeam(prev => prev ? { ...prev, tokens_total: statusData.team.tokens_total } : prev);
                             }
-                          } else {
-                            // Mostrar alerta si la respuesta fue incorrecta
-                            toast.error('❌ Respuesta incorrecta', {
-                              duration: 2000,
-                            });
                           }
+                        } else {
+                          // Mostrar alerta si la respuesta fue incorrecta
+                          toast.error('❌ Respuesta incorrecta', {
+                            duration: 2000,
+                          });
                         }
                       }
-                    } catch (error) {
-                      console.error('Error enviando respuesta individual:', error);
-                      // No mostrar error al usuario, solo loguearlo
                     }
+                  } catch (error) {
+                    console.error('Error enviando respuesta individual:', error);
+                    // No mostrar error al usuario, solo loguearlo
                   }
-                }}
-              />
-            ) : (
-              <div className="text-center text-gray-500">
-                <p>No hay preguntas disponibles</p>
-              </div>
-            )
-          ) : currentPart === 'anagram' ? (
-            minigameData && minigameData.type === MinigameType.ANAGRAMA ? (
-              <AnagramGame
-                data={minigameData}
-                currentIndex={currentGameIndex}
-                userAnswer={userAnswer}
-                setUserAnswer={setUserAnswer}
-                isCorrect={isCorrect}
-                submitting={submitting}
-                onVerify={verifyAnswer}
-                teamColor={team?.color}
-              />
-            ) : (
-              <div className="text-center text-gray-500">
-                <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4" />
-                <p>Cargando anagrama...</p>
-              </div>
-            )
-          ) : currentPart === 'word_search' && minigameData && currentGameType === MinigameType.WORD_SEARCH ? (
-            <WordSearchGame
+                }
+              }}
+            />
+          ) : (
+            <div className="text-center text-gray-500">
+              <p>No hay preguntas disponibles</p>
+            </div>
+          )
+        ) : currentPart === 'anagram' ? (
+          minigameData && minigameData.type === MinigameType.ANAGRAMA ? (
+            <AnagramGame
               data={minigameData}
-              foundWords={foundWords}
-              onWordFound={handleWordFound}
-              onComplete={handleWordSearchComplete}
+              currentIndex={currentGameIndex}
+              userAnswer={userAnswer}
+              setUserAnswer={setUserAnswer}
+              isCorrect={isCorrect}
+              submitting={submitting}
+              onVerify={verifyAnswer}
               teamColor={team?.color}
             />
           ) : (
             <div className="text-center text-gray-500">
               <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4" />
-              <p>Cargando minijuego...</p>
+              <p>Cargando anagrama...</p>
             </div>
-          )}
-        </motion.div>
-        </div>
-      </div>
-
-      {/* Música de fondo */}
+          )
+        ) : currentPart === 'word_search' && minigameData && currentGameType === MinigameType.WORD_SEARCH ? (
+          <WordSearchGame
+            data={minigameData}
+            foundWords={foundWords}
+            onWordFound={handleWordFound}
+            onComplete={handleWordSearchComplete}
+            teamColor={team?.color}
+          />
+        ) : (
+          <div className="text-center text-gray-500">
+            <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4" />
+            <p>Cargando minijuego...</p>
+          </div>
+        )}
+      </GlassCard>
 
       {/* Modal de U-Bot */}
       {team && (
@@ -1971,7 +1887,7 @@ export function TabletMinijuego() {
           teamColor={team.color}
         />
       )}
-    </div>
+    </GalacticPage>
   );
 }
 

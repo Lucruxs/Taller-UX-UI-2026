@@ -6,8 +6,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { UBotPersonalizacionModal } from '@/components/UBotPersonalizacionModal';
+import { GalacticPage } from '@/components/GalacticPage';
+import { GlassCard } from '@/components/GlassCard';
 import { toast } from 'sonner';
 import { tabletConnectionsAPI, sessionsAPI, teamPersonalizationsAPI } from '@/services';
+import { advanceActivityOnTimerExpiration } from '@/utils/timerAutoAdvance';
+import { getResultsRedirectUrl } from '@/utils/tabletResultsRedirect';
 
 interface Team {
   id: number;
@@ -175,7 +179,10 @@ export function TabletPersonalizacion() {
             // Usar lobby en lugar de getById para evitar problemas de autenticación
             const updatedLobbyData = await sessionsAPI.getLobby(statusData.game_session.id);
             const updatedSession = updatedLobbyData.game_session;
-            
+
+            const resultsUrl = getResultsRedirectUrl(updatedSession, String(connectionId));
+            if (resultsUrl) { window.location.href = resultsUrl; return; }
+
             // Verificar si cambió la actividad o el nombre de la actividad
             const activityChanged = updatedSession.current_activity !== initialActivityId || 
                                    (updatedSession.current_activity_name || '') !== initialActivityName;
@@ -294,6 +301,7 @@ export function TabletPersonalizacion() {
       if (remaining <= 0) {
         setTimerRemaining('00:00');
         timeExpiredRef.current = true;
+        void advanceActivityOnTimerExpiration(gameSessionId);
         return; // No iniciar el intervalo si ya expiró
       }
 
@@ -312,7 +320,10 @@ export function TabletPersonalizacion() {
             timerIntervalRef.current = null;
           }
           setTimerRemaining('00:00');
-          timeExpiredRef.current = true;
+          if (!timeExpiredRef.current) {
+            timeExpiredRef.current = true;
+            void advanceActivityOnTimerExpiration(gameSessionId);
+          }
         }
       };
 
@@ -323,16 +334,14 @@ export function TabletPersonalizacion() {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
+  const handleSubmit = async () => {
     if (!teamName.trim()) {
       toast.error('Por favor ingresa un nombre para el equipo');
       return;
     }
 
     if (knowEachOther === null) {
-      toast.error('Por favor selecciona si se conocen o no');
+      toast.error('Por favor selecciona el estado operativo de tu tripulación');
       return;
     }
 
@@ -363,241 +372,157 @@ export function TabletPersonalizacion() {
     }
   };
 
-  const getTeamColorHex = (color: string) => {
-    const colorMap: Record<string, string> = {
-      Verde: '#28a745',
-      Azul: '#007bff',
-      Rojo: '#dc3545',
-      Amarillo: '#ffc107',
-      Naranja: '#fd7e14',
-      Morado: '#6f42c1',
-      Rosa: '#e83e8c',
-      Cian: '#17a2b8',
-      Gris: '#6c757d',
-      Marrón: '#795548',
-    };
-    return colorMap[color] || '#667eea';
-  };
-
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#093c92] via-blue-600 to-[#f757ac]">
-        <Loader2 className="w-8 h-8 animate-spin text-white" />
-      </div>
+      <GalacticPage className="items-center justify-center">
+        <Loader2 className="w-12 h-12 animate-spin" style={{ color: '#c026d3' }} />
+      </GalacticPage>
     );
   }
 
   if (!team) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#093c92] via-blue-600 to-[#f757ac]">
-        <div className="text-white text-center">
-          <p className="text-xl mb-4">Error al cargar información del equipo</p>
+      <GalacticPage className="items-center justify-center">
+        <div style={{ color: '#fff', textAlign: 'center' }}>
+          <p style={{ fontSize: 20, marginBottom: 16 }}>Error al cargar información de la nave</p>
           <Button onClick={() => navigate('/tablet/join')}>Volver a Conectar</Button>
         </div>
-      </div>
+      </GalacticPage>
     );
   }
 
   return (
-    <div className="relative min-h-screen overflow-hidden flex flex-col">
-      {/* Fondo animado igual que Panel */}
-      <div className="absolute inset-0 bg-gradient-to-br from-[#093c92] via-blue-600 to-[#f757ac]">
-        <motion.div
-          animate={{
-            backgroundPosition: ['0% 0%', '100% 100%'],
-          }}
-          transition={{
-            duration: 20,
-            repeat: Infinity,
-            repeatType: 'reverse',
-          }}
-          className="absolute inset-0 opacity-20"
-          style={{
-            backgroundImage: 'radial-gradient(circle, white 1px, transparent 1px)',
-            backgroundSize: '50px 50px',
-          }}
-        />
+    <GalacticPage>
+      {/* Header row: team badge + tokens + timer */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24, width: '100%', padding: '0 8px' }}>
         
-        {/* Efectos de partículas adicionales */}
-        <div className="absolute inset-0">
-          {[...Array(20)].map((_, i) => (
-            <motion.div
-              key={i}
-              className="absolute w-2 h-2 bg-white rounded-full opacity-30"
-              initial={{
-                x: Math.random() * (typeof window !== 'undefined' ? window.innerWidth : 1920),
-                y: Math.random() * (typeof window !== 'undefined' ? window.innerHeight : 1080),
-              }}
-              animate={{
-                y: [null, Math.random() * (typeof window !== 'undefined' ? window.innerHeight : 1080)],
-                opacity: [0.3, 0.6, 0.3],
-              }}
-              transition={{
-                duration: 3 + Math.random() * 2,
-                repeat: Infinity,
-                delay: Math.random() * 2,
-              }}
-            />
-          ))}
-        </div>
-      </div>
-
-      <div className="relative z-10 p-3 sm:p-4">
-        <div className="max-w-6xl mx-auto relative z-20">
-        {/* Header Mejorado */}
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-white/95 backdrop-blur-sm rounded-2xl sm:rounded-3xl shadow-2xl p-4 sm:p-6 mb-4 sm:mb-6 flex items-center justify-between flex-wrap gap-4"
-        >
-          <div className="flex items-center gap-3 sm:gap-4">
-            <motion.div
-              whileHover={{ scale: 1.1, rotate: 5 }}
-              whileTap={{ scale: 0.95 }}
-              className="w-12 h-12 sm:w-14 sm:h-14 rounded-full flex items-center justify-center text-white text-lg sm:text-xl font-bold shadow-lg"
-              style={{ backgroundColor: getTeamColorHex(team.color) }}
-            >
-              {team.color.charAt(0).toUpperCase()}
-            </motion.div>
-            <div>
-              <h3 className="text-lg sm:text-xl font-bold text-gray-800">
-                {team.name?.replace(/^Equipo\s+/i, 'Start-up ') || `Start-up ${team.color}`}
-              </h3>
-              <p className="text-xs sm:text-sm text-gray-600">Start-up {team.color}</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            {team && (
-              <motion.button
-                onClick={() => setShowUBotModal(true)}
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                className="bg-gradient-to-r from-pink-500 to-pink-600 text-white px-5 py-2.5 rounded-full font-semibold text-sm sm:text-base flex items-center gap-2 shadow-lg"
-              >
-                <Bot className="w-4 h-4 sm:w-5 sm:h-5" />
-                <span>U-Bot</span>
-              </motion.button>
-            )}
-            <motion.div
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              className="bg-gradient-to-r from-[#093c92] to-blue-700 text-white px-5 py-2.5 rounded-full font-semibold text-sm sm:text-base flex items-center gap-2 shadow-lg"
-            >
-              <Coins className="w-4 h-4 sm:w-5 sm:h-5" /> {team.tokens_total || 0} Tokens
-            </motion.div>
-          </div>
-        </motion.div>
-
-        {/* Formulario Mejorado */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-white rounded-xl shadow-xl p-4 sm:p-6"
-        >
-          {/* Título y Descripción */}
-          <div className="mb-4 sm:mb-5">
-            <h2 className="text-xl sm:text-2xl font-bold text-[#093c92] mb-2">
-              1. Registro de Identidad
-            </h2>
-            <p className="text-gray-600 text-sm">
-              Definan el nombre de su Start-up y estado actual.
-            </p>
-          </div>
-
-          {/* Temporizador Mejorado */}
-          <div className="bg-yellow-50 border-2 border-yellow-300 rounded-lg p-3 mb-4 sm:mb-5">
-            <div className="flex items-center justify-center gap-2">
-              <Clock className="w-4 h-4 text-yellow-700" />
-              <span className="text-yellow-800 font-semibold text-sm sm:text-base">
-                Tiempo restante: <span className="font-bold">{timerRemaining}</span>
+        {/* Nuevo Team Badge estilo HUD Espacial */}
+        <div className="glass-card" style={{ 
+          padding: '8px 20px', 
+          display: 'flex', 
+          alignItems: 'center', 
+          borderLeft: `3px solid ${team?.color || '#c026d3'}` 
+        }}>
+          <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+            <span style={{ fontFamily: "'Orbitron',sans-serif", fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: 'rgba(255,255,255,0.5)', marginBottom: 4 }}>
+              Nombre del Escuadrón 
+            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ 
+                width: 10, height: 10, borderRadius: '50%', 
+                background: team?.color || '#c026d3', 
+                boxShadow: `0 0 10px ${team?.color || '#c026d3'}` 
+              }} />
+              <span style={{ fontFamily: "'Exo 2',sans-serif", fontSize: 16, fontWeight: 700, color: '#fff', letterSpacing: 0.5 }}>
+                {team?.name || 'Mi Equipo'}
               </span>
             </div>
           </div>
-
-          <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5">
-            {/* Campo Nombre del Equipo */}
-            <div className="space-y-2">
-              <Label htmlFor="teamName" className="text-[#093c92] font-semibold text-sm">
-                Nombre de la Start-up
-              </Label>
-              <Input
-                id="teamName"
-                type="text"
-                placeholder="Ej: Rocket Labs, Alpha Solutions, Futuro S.A..."
-                value={teamName}
-                onChange={(e) => setTeamName(e.target.value)}
-                maxLength={100}
-                required
-                disabled={submitted || submitting}
-                className="h-11 sm:h-12 text-sm sm:text-base border-2 focus:border-[#093c92]"
-              />
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div className="glass-card" style={{ padding: '6px 16px', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ fontFamily: "'Orbitron',sans-serif", fontSize: 13, color: '#fbbf24' }}>
+              ⭐ {team?.tokens_total ?? 0}
+            </span>
+          </div>
+          {timerRemaining !== '--:--' && (
+            <div className="glass-card" style={{ padding: '6px 16px' }}>
+              <span style={{ fontFamily: "'Orbitron',sans-serif", fontSize: 14, color: '#fff' }}>
+                ⏱ {timerRemaining}
+              </span>
             </div>
-
-            {/* Pregunta sobre conocimiento */}
-            <div className="space-y-3">
-              <Label className="text-[#093c92] font-semibold text-sm sm:text-base block">
-                Estado de conexión del equipo:
-              </Label>
-              <div className="grid grid-cols-2 gap-3">
-                <motion.button
-                  type="button"
-                  onClick={() => !submitted && !submitting && setKnowEachOther(true)}
-                  disabled={submitted || submitting}
-                  whileHover={!submitted && !submitting ? { scale: 1.02 } : {}}
-                  whileTap={!submitted && !submitting ? { scale: 0.98 } : {}}
-                  className={`p-4 sm:p-5 rounded-xl border-2 transition-all text-center font-semibold text-sm sm:text-base flex flex-col items-center justify-center gap-2 ${
-                    knowEachOther === true
-                      ? 'bg-[#093c92] text-white border-[#093c92] shadow-lg'
-                      : 'bg-white text-gray-700 border-gray-200 hover:border-[#093c92] hover:bg-blue-50'
-                  } ${submitted || submitting ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-                >
-                  <Hand className={`w-8 h-8 sm:w-10 sm:h-10 ${knowEachOther === true ? 'text-white' : 'text-[#093c92]'}`} />
-                  <span>Ya nos conocemos</span>
-                </motion.button>
-                <motion.button
-                  type="button"
-                  onClick={() => !submitted && !submitting && setKnowEachOther(false)}
-                  disabled={submitted || submitting}
-                  whileHover={!submitted && !submitting ? { scale: 1.02 } : {}}
-                  whileTap={!submitted && !submitting ? { scale: 0.98 } : {}}
-                  className={`p-4 sm:p-5 rounded-xl border-2 transition-all text-center font-semibold text-sm sm:text-base flex flex-col items-center justify-center gap-2 ${
-                    knowEachOther === false
-                      ? 'bg-[#093c92] text-white border-[#093c92] shadow-lg'
-                      : 'bg-white text-gray-700 border-gray-200 hover:border-[#093c92] hover:bg-blue-50'
-                  } ${submitted || submitting ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-                >
-                  <UserPlus className={`w-8 h-8 sm:w-10 sm:h-10 ${knowEachOther === false ? 'text-white' : 'text-[#093c92]'}`} />
-                  <span>No nos conocemos</span>
-                </motion.button>
-              </div>
-            </div>
-
-            {/* Botón Entregar Mejorado */}
-            <Button
-              type="submit"
-              disabled={submitted || submitting}
-              className="w-full h-12 sm:h-14 bg-[#093c92] hover:bg-[#072e73] text-white text-sm sm:text-base font-semibold rounded-lg shadow-md hover:shadow-lg transition-all"
-            >
-              {submitting ? (
-                <>
-                  <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                  Enviando...
-                </>
-              ) : submitted ? (
-                <>
-                  <CheckCircle2 className="w-5 h-5 mr-2" />
-                  ✓ Entregado
-                </>
-              ) : (
-                'FUNDAR STARTUP'
-              )}
-            </Button>
-          </form>
-        </motion.div>
+          )}
         </div>
       </div>
 
-      {/* Modal de U-Bot para Personalización */}
+      {/* Main form card */}
+      <GlassCard style={{ maxWidth: 640, margin: '0 auto', width: '100%', padding: '32px 28px' }}>
+        <div style={{ textAlign: 'center', marginBottom: 28 }}>
+          <div className="galactic-label" style={{ marginBottom: 8, fontSize: 11, letterSpacing: 3, textTransform: 'uppercase', color: 'rgba(255,255,255,0.5)' }}>
+            Personalización
+          </div>
+          <h2 style={{ fontFamily: "'Orbitron',sans-serif", fontSize: 'clamp(20px,4vw,32px)', fontWeight: 700, color: '#fff', textShadow: '0 0 20px rgba(192,38,211,0.5)', lineHeight: 1.2 }}>
+            Registro de Nave y Tripulación
+          </h2>
+          <p style={{ fontFamily: "'Exo 2',sans-serif", fontSize: 14, color: 'rgba(255,255,255,0.6)', marginTop: 12, lineHeight: 1.6, maxWidth: 480, margin: '12px auto 0' }}>
+            Antes de que su nave despegue, el sistema de control de misión necesita registrar su nombre operativo y verificar el estado de su crew.
+          </p>
+        </div>
+
+        {/* Startup name input */}
+        <div style={{ marginBottom: 28 }}>
+          <label style={{ fontFamily: "'Exo 2',sans-serif", fontSize: 13, letterSpacing: 2, textTransform: 'uppercase', color: 'rgba(255,255,255,0.8)', display: 'block', marginBottom: 10, fontWeight: 600 }}>
+            Nombre de la Nave (Start-up)
+          </label>
+          <input
+            type="text"
+            value={teamName}
+            onChange={e => setTeamName(e.target.value)}
+            maxLength={100}
+            placeholder="Ej: Rocket Labs, Alpha Solutions..."
+            disabled={submitted || submitting}
+            style={{
+              width: '100%', padding: '16px 20px',
+              background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.15)',
+              borderRadius: 12, color: '#fff', fontSize: 16,
+              fontFamily: "'Exo 2',sans-serif", outline: 'none',
+              transition: 'border-color 0.3s, background 0.3s'
+            }}
+            onFocus={(e) => e.target.style.borderColor = '#c026d3'}
+            onBlur={(e) => e.target.style.borderColor = 'rgba(255,255,255,0.15)'}
+          />
+        </div>
+
+        {/* Know each other Cards (NUEVO DISEÑO GALÁCTICO) */}
+        <div style={{ marginBottom: 32 }}>
+          <label style={{ fontFamily: "'Exo 2',sans-serif", fontSize: 13, letterSpacing: 2, textTransform: 'uppercase', color: 'rgba(255,255,255,0.8)', display: 'block', marginBottom: 16, fontWeight: 600 }}>
+            Estado Operativo de la Tripulación
+          </label>
+          
+          <div className="choice-row">
+            {/* Tarjeta 1: Ya se conocen */}
+            <div 
+              className={`choice-card veteran ${knowEachOther === true ? 'selected' : ''}`}
+              onClick={() => !submitted && !submitting && setKnowEachOther(true)}
+              style={{ opacity: (submitted || submitting) && knowEachOther !== true ? 0.5 : 1, cursor: (submitted || submitting) ? 'default' : 'pointer' }}
+            >
+              <span className="choice-icon">🛸</span>
+              <div className="choice-name">Equipo Veterano</div>
+              <div className="choice-desc">Ya hemos operado juntos y nos conocemos bien como tripulación.</div>
+              <span className="choice-tag">Ya nos conocemos</span>
+            </div>
+
+            {/* Tarjeta 2: No se conocen */}
+            <div 
+              className={`choice-card newteam ${knowEachOther === false ? 'selected' : ''}`}
+              onClick={() => !submitted && !submitting && setKnowEachOther(false)}
+              style={{ opacity: (submitted || submitting) && knowEachOther !== false ? 0.5 : 1, cursor: (submitted || submitting) ? 'default' : 'pointer' }}
+            >
+              <span className="choice-icon">🌌</span>
+              <div className="choice-name">Primera Misión</div>
+              <div className="choice-desc">Somos nuevos tripulantes — este es nuestro primer vuelo juntos.</div>
+              <span className="choice-tag">No nos conocemos</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Submit button */}
+        <button
+          className="btn-galactic-primary"
+          style={{ width: '100%', fontSize: 15, padding: '18px 0', letterSpacing: 4 }}
+          onClick={handleSubmit}
+          disabled={submitted || submitting || !teamName.trim() || knowEachOther === null}
+        >
+          {submitting ? (
+            <>
+              <Loader2 className="w-5 h-5 animate-spin" style={{ display: 'inline', marginRight: 8 }} />
+              INICIANDO SECUENCIA...
+            </>
+          ) : submitted ? '✓ TRIPULACIÓN REGISTRADA' : 'CONFIRMAR REGISTRO'}
+        </button>
+      </GlassCard>
+
+      {/* U-Bot modal */}
       {team && (
         <UBotPersonalizacionModal
           isOpen={showUBotModal}
@@ -608,9 +533,6 @@ export function TabletPersonalizacion() {
           teamColor={team.color}
         />
       )}
-
-      {/* Música de fondo */}
-    </div>
+    </GalacticPage>
   );
 }
-

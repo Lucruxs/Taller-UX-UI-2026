@@ -2,8 +2,10 @@ import { useState, useEffect, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Loader2 } from 'lucide-react';
-import { sessionsAPI, tabletConnectionsAPI } from '@/services';
+import { sessionsAPI, tabletConnectionsAPI, teamPersonalizationsAPI } from '@/services';
 import { toast } from 'sonner';
+import { GalacticPage } from '@/components/GalacticPage';
+import { GlassCard } from '@/components/GlassCard';
 
 interface GameSession {
   id: number;
@@ -20,8 +22,8 @@ export function TabletInstructivo() {
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const activityCheckIntervalRef = useRef<NodeJS.Timeout | null>(null);
   
-  // URL del video explicativo del juego (cambiar por el video real)
-  const videoUrl = 'https://www.youtube.com/embed/VIDEO_ID_AQUI'; // Reemplazar con el ID del video real
+  // TODO: Reemplazar con el ID real del video de YouTube cuando esté disponible
+  const videoUrl = '';
 
   useEffect(() => {
     const connId = searchParams.get('connection_id') || localStorage.getItem('tabletConnectionId');
@@ -40,7 +42,21 @@ export function TabletInstructivo() {
         }
 
         const gameSessionId = statusData.game_session.id;
-        
+
+        const redirectPresentacion = async () => {
+          try {
+            const persList = await teamPersonalizationsAPI.list({ team: statusData.team.id });
+            const persResults = Array.isArray(persList) ? persList : [persList];
+            if (persResults.length > 0 && persResults[0].team_members_know_each_other === true) {
+              window.location.href = `/tablet/etapa1/minijuego/?connection_id=${connId}`;
+            } else {
+              window.location.href = `/tablet/etapa1/presentacion/?connection_id=${connId}`;
+            }
+          } catch {
+            window.location.href = `/tablet/etapa1/presentacion/?connection_id=${connId}`;
+          }
+        };
+
         // Usar lobby en lugar de getById para evitar problemas de autenticación
         const lobbyData = await sessionsAPI.getLobby(gameSessionId);
         const gameData = lobbyData.game_session;
@@ -64,7 +80,10 @@ export function TabletInstructivo() {
             window.location.href = `/tablet/loading?redirect=/tablet/etapa1/personalizacion&connection_id=${connId}`;
             return;
           } else if (normalizedName.includes('presentaci')) {
-            window.location.href = `/tablet/loading?redirect=/tablet/etapa1/presentacion&connection_id=${connId}`;
+            await redirectPresentacion();
+            return;
+          } else if (gameData.current_stage_number === 1 && normalizedName && !normalizedName.includes('instructivo') && !normalizedName.includes('video')) {
+            await redirectPresentacion();
             return;
           }
         }
@@ -99,11 +118,23 @@ export function TabletInstructivo() {
                   window.location.href = `/tablet/loading?redirect=/tablet/etapa1/personalizacion&connection_id=${connId}`;
                   return;
                 } else if (newActivityName.includes('presentaci')) {
-                  window.location.href = `/tablet/loading?redirect=/tablet/etapa1/presentacion&connection_id=${connId}`;
+                  await redirectPresentacion();
+                  return;
+                } else if (newActivityName && !newActivityName.includes('instructivo') && !newActivityName.includes('video')) {
+                  await redirectPresentacion();
                   return;
                 }
               } else if (newStageNumber && newStageNumber > 1) {
-                window.location.href = `/tablet/lobby?connection_id=${connId}`;
+                const n = newActivityName.toLowerCase();
+                let destBase = '';
+                if (newStageNumber === 2) destBase = n.includes('bubble') || n.includes('mapa') ? '/tablet/etapa2/bubble-map/' : '/tablet/etapa2/seleccionar-tema/';
+                else if (newStageNumber === 3) destBase = '/tablet/etapa3/prototipo/';
+                else if (newStageNumber === 4) destBase = n.includes('presentaci') ? '/tablet/etapa4/presentacion-pitch/' : '/tablet/etapa4/formulario-pitch/';
+                if (destBase) {
+                  window.location.href = `/tablet/etapa-warp?stage=${newStageNumber}&redirect=${encodeURIComponent(destBase)}&connection_id=${connId}`;
+                } else {
+                  window.location.href = `/tablet/lobby?connection_id=${connId}`;
+                }
                 return;
               }
             }
@@ -131,57 +162,45 @@ export function TabletInstructivo() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#F5F0E8]">
-        <Loader2 className="w-8 h-8 animate-spin text-slate-400" />
-      </div>
+      <GalacticPage className="items-center justify-center">
+        <Loader2 className="w-12 h-12 animate-spin" style={{ color: '#c026d3' }} />
+      </GalacticPage>
     );
   }
 
   return (
-    <div
-      className="min-h-screen bg-[#F5F0E8] flex flex-col"
-      style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}
-    >
-      {/* Header con logo */}
-      <header className="p-6 flex justify-end flex-shrink-0">
-        <img
-          src="/images/UDD-negro.png"
-          alt="Logo UDD"
-          className="h-8 sm:h-10 w-auto object-contain opacity-80"
-        />
-      </header>
+    <GalacticPage>
+      <div style={{ textAlign: 'center', marginBottom: 24 }}>
+        <div className="galactic-label" style={{ marginBottom: 8 }}>Planeta 1 · Instrucciones</div>
+        <h1 style={{ fontFamily: "'Orbitron', sans-serif", fontSize: 'clamp(20px,3vw,32px)', fontWeight: 700, color: '#fff', letterSpacing: 2, textShadow: '0 0 20px rgba(192,38,211,0.5)' }}>
+          Instructivo del Juego
+        </h1>
+      </div>
 
-      {/* Tarjeta principal */}
-      <div className="flex-1 flex flex-col px-4 pb-6 min-h-0">
-        <motion.div
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3 }}
-          className="bg-white rounded-3xl shadow-sm p-4 sm:p-6 w-full max-w-5xl mx-auto flex flex-col flex-1 min-h-0"
-        >
-          {/* iframe */}
-          <div className="flex-1 rounded-2xl overflow-hidden bg-black min-h-0">
+      <GlassCard className="flex-1 flex flex-col overflow-hidden" style={{ maxWidth: 900, margin: '0 auto', width: '100%', minHeight: 0 }}>
+        <div style={{ flex: 1, minHeight: 300, overflow: 'hidden', borderRadius: 12, background: '#000' }}>
+          {videoUrl ? (
             <iframe
-              src={`${videoUrl}?autoplay=0&mute=0&controls=1&rel=0&modestbranding=1`}
+              src={`https://www.youtube.com/embed/${videoUrl}?autoplay=0&controls=1&rel=0`}
               title="Instructivo del Juego"
-              className="w-full h-full"
+              style={{ width: '100%', height: '100%', minHeight: 300 }}
               allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
               allowFullScreen
             />
-          </div>
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', minHeight: 300, color: 'rgba(255,255,255,0.4)', fontFamily: "'Exo 2',sans-serif", fontSize: 16 }}>
+              Video próximamente
+            </div>
+          )}
+        </div>
+      </GlassCard>
 
-          {/* Texto inferior */}
-          <div className="flex-shrink-0 mt-5 text-center">
-            <p className="text-xl md:text-2xl font-bold text-slate-800">
-              Instructivo del Juego
-            </p>
-            <p className="text-slate-500 mt-2 font-medium animate-pulse">
-              Esperando a que el profesor inicie la Etapa 1...
-            </p>
-          </div>
-        </motion.div>
+      <div style={{ textAlign: 'center', marginTop: 24 }}>
+        <p style={{ fontFamily: "'Exo 2', sans-serif", fontSize: 16, color: 'rgba(255,255,255,0.6)', letterSpacing: 1, animation: 'pulse 2s ease-in-out infinite' }}>
+          Esperando a que el profesor inicie la Etapa 1...
+        </p>
       </div>
-    </div>
+    </GalacticPage>
   );
 }
 

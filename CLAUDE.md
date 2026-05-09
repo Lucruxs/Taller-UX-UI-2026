@@ -49,7 +49,10 @@ mysql -u root -p mision_emprende2 < "Dump20251203 (1).sql"
 docker exec mision_emprende_backend python manage.py create_initial_data
 docker exec mision_emprende_backend python manage.py create_stage3
 docker exec mision_emprende_backend python manage.py create_stage4
+docker exec mision_emprende_backend python manage.py create_minigame_data
 ```
+
+(`create_minigame_data` seeds AnagramWord, ChaosQuestion, and GeneralKnowledgeQuestion records needed for Etapa 1.)
 
 ### Frontend (standalone)
 

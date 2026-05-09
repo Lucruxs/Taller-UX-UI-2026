@@ -121,7 +121,7 @@ class Command(BaseCommand):
             random.shuffle(letters)
             return ''.join(letters)
         
-        words_list = ['emprender', 'innovacion', 'creatividad']
+        words_list = ['emprender', 'innovacion', 'creativos']
         presentation_config = {
             'type': 'anagram',
             'words_per_game': 3,

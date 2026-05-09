@@ -19,12 +19,14 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { EtapaIntroModal } from '@/components/EtapaIntroModal';
 import { UBotPrototipoModal } from '@/components/UBotPrototipoModal';
-import { 
-  sessionsAPI, 
-  challengesAPI, 
-  teamActivityProgressAPI, 
-  tabletConnectionsAPI 
+import {
+  sessionsAPI,
+  challengesAPI,
+  teamActivityProgressAPI,
+  tabletConnectionsAPI
 } from '@/services';
+import { getResultsRedirectUrl } from '@/utils/tabletResultsRedirect';
+import { advanceActivityOnTimerExpiration } from '@/utils/timerAutoAdvance';
 import { toast } from 'sonner';
 
 interface Team {
@@ -107,6 +109,9 @@ export function TabletPrototipo() {
       const gameData = lobbyData.game_session;
       const sessionId = statusData.game_session.id;
 
+      const resultsUrl = getResultsRedirectUrl(gameData, connId);
+      if (resultsUrl) { window.location.href = resultsUrl; return; }
+
       // Mostrar modal de U-Bot si no se ha visto
       if (gameData.current_stage_number === 3) {
         const ubotKey = `ubot_prototipo_${sessionId}`;
@@ -145,13 +150,13 @@ export function TabletPrototipo() {
 
       // Si el profesor avanzó a otra etapa
       if (currentStageNumber > 3) {
+        const n = currentActivityName;
+        let destBase = '';
         if (currentStageNumber === 4) {
-          const normalizedName = currentActivityName;
-          if (normalizedName.includes('formulario') || normalizedName.includes('pitch')) {
-            window.location.href = `/tablet/etapa4/formulario-pitch/?connection_id=${connId}`;
-          } else {
-            window.location.href = `/tablet/lobby?connection_id=${connId}`;
-          }
+          destBase = n.includes('presentaci') ? '/tablet/etapa4/presentacion-pitch/' : '/tablet/etapa4/formulario-pitch/';
+        }
+        if (destBase) {
+          window.location.href = `/tablet/etapa-warp?stage=${currentStageNumber}&redirect=${encodeURIComponent(destBase)}&connection_id=${connId}`;
         } else {
           window.location.href = `/tablet/lobby?connection_id=${connId}`;
         }
@@ -255,6 +260,7 @@ export function TabletPrototipo() {
         if (remaining === 0 && timerIntervalRef.current) {
           clearInterval(timerIntervalRef.current);
           timerIntervalRef.current = null;
+          void advanceActivityOnTimerExpiration(gameSessionId);
         }
       };
 

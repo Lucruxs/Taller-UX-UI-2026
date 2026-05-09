@@ -44,11 +44,13 @@ class GameSessionSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'professor', 'professor_name', 'course', 'course_name',
             'room_code', 'qr_code', 'status', 'started_at', 'ended_at',
-            'current_stage', 'current_stage_name', 'current_stage_number', 'current_activity', 'current_activity_name',
+            'current_stage', 'current_stage_name', 'current_stage_number',
+            'current_activity', 'current_activity_name',
             'cancellation_reason', 'cancellation_reason_other',
+            'show_results_stage',
             'teams_count', 'created_at', 'updated_at'
         ]
-        read_only_fields = ['id', 'professor_name', 'course_name', 'qr_code', 'current_stage_name', 'current_stage_number', 'current_activity_name', 'teams_count', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'professor_name', 'course_name', 'qr_code', 'current_stage_name', 'current_stage_number', 'current_activity_name', 'teams_count', 'created_at', 'updated_at', 'show_results_stage']
     
     def get_teams_count(self, obj):
         # Optimizar: usar prefetch_related si está disponible, sino usar count()
@@ -181,7 +183,7 @@ class TabletConnectionSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'tablet', 'tablet_code', 'team', 'team_name', 'game_session',
             'game_session_room_code', 'connected_at', 'disconnected_at', 'last_seen',
-            'is_connected', 'team_session_token'
+            'is_connected', 'team_session_token', 'current_screen'
         ]
         read_only_fields = [
             'id', 'tablet_code', 'team_name', 'game_session_room_code',

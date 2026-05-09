@@ -7,14 +7,16 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { UBotBubbleMapModal } from '@/components/UBotBubbleMapModal';
-import { 
-  sessionsAPI, 
-  challengesAPI, 
-  teamBubbleMapsAPI, 
-  tokenTransactionsAPI, 
+import {
+  sessionsAPI,
+  challengesAPI,
+  teamBubbleMapsAPI,
+  tokenTransactionsAPI,
   tabletConnectionsAPI,
   teamActivityProgressAPI
 } from '@/services';
+import { getResultsRedirectUrl } from '@/utils/tabletResultsRedirect';
+import { advanceActivityOnTimerExpiration } from '@/utils/timerAutoAdvance';
 import { toast } from 'sonner';
 
 // Interfaces basadas en mapa2 pero adaptadas
@@ -1100,6 +1102,7 @@ export function TabletBubbleMap() {
         if (remaining === 0 && !timeExpiredRef.current) {
             timeExpiredRef.current = true;
             toast.error('⏱️ ¡Tiempo agotado!', { duration: 5000 });
+            void advanceActivityOnTimerExpiration(gameSessionId);
             
             if (team && currentSessionStageId) {
               saveBubbleMap().then(() => {
@@ -1267,7 +1270,10 @@ export function TabletBubbleMap() {
             // Usar lobby en lugar de getById para evitar problemas de autenticación
             const updatedLobbyData = await sessionsAPI.getLobby(gameSession.id);
             const updatedSession = updatedLobbyData.game_session;
-            
+
+            const resultsUrl = getResultsRedirectUrl(updatedSession, String(connectionId));
+            if (resultsUrl) { window.location.href = resultsUrl; return; }
+
             // Verificar si cambió la actividad o el nombre de la actividad
             const activityChanged = updatedSession.current_activity !== initialActivityId || 
                                    (updatedSession.current_activity_name || '') !== (initialActivityName || '');

@@ -218,8 +218,30 @@ export function WordSearchGame({
     });
 
     if (foundWord) {
+      // Animación de celebración para las celdas encontradas
+      const gridElement = gridRef.current;
+      if (gridElement) {
+        foundWord.cells.forEach(({ row, col }) => {
+          const cellElement = gridElement.querySelector(`[data-row="${row}"][data-col="${col}"]`);
+          if (cellElement) {
+            cellElement.animate([
+              { transform: 'scale(1)' },
+              { transform: 'scale(1.3)', filter: 'brightness(1.2)' },
+              { transform: 'scale(1)' }
+            ], {
+              duration: 600,
+              easing: 'ease-out',
+              fill: 'forwards'
+            });
+          }
+        });
+      }
+
       onWordFound(foundWord.word, foundWord.cells);
-      toast.success(`🎉 ¡Encontraste "${foundWord.word}"!`);
+      toast.success(`🎉 ¡Encontraste "${foundWord.word}"!`, {
+        duration: 3000,
+        icon: '✅',
+      });
       setSelectedCells([]);
     } else {
       setSelectedCells([]);
@@ -251,11 +273,11 @@ export function WordSearchGame({
     <div className="space-y-3 sm:space-y-4">
       {/* Lista de palabras a encontrar */}
       <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-lg p-2 sm:p-3 border-2 border-purple-200">
-        <div className="flex items-center gap-3 flex-wrap">
+        <div className="flex items-center gap-3 flex-col sm:flex-row">
           <h3 className="text-purple-900 font-bold text-sm sm:text-base flex-shrink-0">
             Palabras a encontrar:
           </h3>
-          <div className="flex gap-1.5 sm:gap-2 overflow-x-auto pb-1 custom-scrollbar flex-1 min-w-0">
+          <div className="flex gap-1.5 sm:gap-2 overflow-x-auto pb-1 custom-scrollbar flex-1 w-full sm:w-auto">
             {data.words.map((word) => {
               const encontrada = foundWords.includes(word);
               return (
@@ -263,13 +285,13 @@ export function WordSearchGame({
                   key={word}
                   initial={false}
                   animate={{ 
-                    scale: encontrada ? [1, 1.1, 1] : 1,
+                    scale: encontrada ? [1, 1.15, 1] : 1,
                   }}
                 className={`
-                  flex-shrink-0 inline-flex items-center gap-1 px-2 py-1 rounded-md transition-all text-xs sm:text-sm font-semibold
+                  flex-shrink-0 inline-flex items-center gap-1 px-3 py-1.5 rounded-lg transition-all text-xs sm:text-sm font-bold shadow-sm
                   ${encontrada 
-                    ? 'text-white shadow-md' 
-                    : 'bg-white text-gray-700 border-2 border-gray-200'
+                    ? 'text-white shadow-lg scale-105' 
+                    : 'bg-white text-gray-700 border-2 border-gray-300 hover:border-gray-400'
                   }
                 `}
                 style={encontrada ? { backgroundColor: teamColorHex } : {}}
@@ -278,17 +300,28 @@ export function WordSearchGame({
                     {word}
                   </span>
                   {encontrada && (
-                    <CheckCircle2 className="w-3 h-3 sm:w-4 sm:h-4" />
+                    <motion.div
+                      initial={{ rotate: -180, scale: 0 }}
+                      animate={{ rotate: 0, scale: 1 }}
+                      transition={{ type: 'spring', damping: 10 }}
+                    >
+                      <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5" />
+                    </motion.div>
                   )}
                 </motion.div>
               );
             })}
           </div>
-          <div className="bg-white rounded-full px-2 py-0.5 shadow-sm flex-shrink-0">
-            <span className="text-purple-900 font-semibold text-xs sm:text-sm">
-              Progreso de Misión: {foundWords.length}/{data.words.length}
+          {/* Progreso */}
+          <motion.div 
+            className="bg-gradient-to-r from-purple-500 to-pink-500 rounded-full px-4 py-1.5 shadow-lg flex-shrink-0"
+            animate={{ scale: [1, 1.05, 1] }}
+            transition={{ duration: 0.5, repeat: foundWords.length > 0 && !allWordsFound ? Infinity : 0, repeatDelay: 2 }}
+          >
+            <span className="text-white font-bold text-sm sm:text-base">
+              {foundWords.length}/{data.words.length} ✓
             </span>
-          </div>
+          </motion.div>
         </div>
       </div>
 
@@ -348,16 +381,23 @@ export function WordSearchGame({
                       w-7 h-7 sm:w-9 sm:h-9 md:w-10 md:h-10 flex items-center justify-center cursor-pointer text-xs sm:text-sm md:text-base
                       font-bold rounded transition-all duration-200 select-none
                       ${encontrada 
-                        ? 'text-white shadow-md' 
+                        ? 'text-white shadow-lg font-extrabold' 
                         : seleccionada 
-                          ? 'text-white shadow-md' 
+                          ? 'text-white shadow-lg font-bold' 
                           : 'bg-white text-gray-700 hover:opacity-80'
                       }
                     `}
                     style={encontrada 
-                      ? { backgroundColor: teamColorHex } 
+                      ? { 
+                          backgroundColor: teamColorHex,
+                          boxShadow: `0 0 12px ${teamColorHex}, inset 0 0 8px rgba(255,255,255,0.3)`,
+                        } 
                       : seleccionada 
-                        ? { backgroundColor: teamColorHex, opacity: 0.8 }
+                        ? { 
+                            backgroundColor: teamColorHex, 
+                            opacity: 0.8,
+                            boxShadow: `0 0 8px ${teamColorHex}`
+                          }
                         : {}
                     }
                   >
@@ -376,17 +416,26 @@ export function WordSearchGame({
       <AnimatePresence>
         {allWordsFound && (
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 20 }}
-            className="bg-green-50 border-2 border-green-400 rounded-lg p-6 text-center"
+            initial={{ opacity: 0, scale: 0.8, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.8, y: 20 }}
+            transition={{ type: 'spring', damping: 15, stiffness: 100 }}
+            className="bg-gradient-to-br from-green-50 to-emerald-50 border-4 border-green-500 rounded-xl p-8 text-center shadow-2xl"
           >
-            <CheckCircle2 className="w-12 h-12 sm:w-16 sm:h-16 text-green-600 mx-auto mb-3" />
-            <p className="text-xl sm:text-2xl font-bold text-green-700 mb-2">
-              ¡Felicidades!
+            <motion.div
+              animate={{ scale: [1, 1.1, 1] }}
+              transition={{ duration: 0.6, ease: 'easeInOut' }}
+            >
+              <CheckCircle2 className="w-16 h-16 sm:w-20 sm:h-20 text-green-600 mx-auto mb-4" />
+            </motion.div>
+            <p className="text-2xl sm:text-3xl font-bold text-green-700 mb-2">
+              ¡COMPLETADO! 🎊
             </p>
-            <p className="text-green-800 text-sm sm:text-base">
-              Has encontrado todas las palabras
+            <p className="text-green-800 text-base sm:text-lg font-semibold">
+              ✓ Encontraste todas las {data.words.length} palabras
+            </p>
+            <p className="text-green-700 text-sm mt-3 opacity-90">
+              Excelente trabajo, equipo. Prepárate para la siguiente actividad.
             </p>
           </motion.div>
         )}

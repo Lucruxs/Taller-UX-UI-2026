@@ -120,6 +120,11 @@ export const sessionsAPI = {
     return response.data;
   },
 
+  showResults: async (sessionId: number | string, stage: number) => {
+    const response = await api.post(`/sessions/game-sessions/${sessionId}/show_results/`, { stage });
+    return response.data;
+  },
+
   startReflection: async (sessionId: number | string) => {
     const response = await api.post(`/sessions/game-sessions/${sessionId}/start_reflection/`);
     return response.data;

@@ -20,10 +20,10 @@ echo "Collecting static files..."
 python manage.py collectstatic --noinput
 
 echo "Seeding game data..."
-python manage.py create_initial_data
-python manage.py create_video_institucional
-python manage.py create_stage3
-python manage.py create_stage4
+python manage.py create_initial_data || echo "create_initial_data: skipped (already seeded)"
+python manage.py create_video_institucional || echo "create_video_institucional: skipped (already seeded)"
+python manage.py create_stage3 || echo "create_stage3: skipped (already seeded)"
+python manage.py create_stage4 || echo "create_stage4: skipped (already seeded)"
 
 echo "Starting server..."
 exec "$@"

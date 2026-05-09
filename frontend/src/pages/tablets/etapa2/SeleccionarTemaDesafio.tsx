@@ -15,6 +15,8 @@ import { Button } from '@/components/ui/button';
 import { UBotEtapa2Modal } from '@/components/UBotEtapa2Modal';
 import { Bot } from 'lucide-react';
 import { sessionsAPI, tabletConnectionsAPI, challengesAPI, teamActivityProgressAPI, academicAPI, teamPersonalizationsAPI } from '@/services';
+import { getResultsRedirectUrl } from '@/utils/tabletResultsRedirect';
+import { advanceActivityOnTimerExpiration } from '@/utils/timerAutoAdvance';
 import { toast } from 'sonner';
 
 interface Team {
@@ -391,6 +393,7 @@ export function TabletSeleccionarTemaDesafio() {
   const [showUBotModal, setShowUBotModal] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const timeExpiredRef = useRef<boolean>(false);
   const scrollPositionRef = useRef<number>(0);
   const isFetchingRef = useRef<boolean>(false);
   const lastActivityIdRef = useRef<number | null>(null);
@@ -450,8 +453,11 @@ export function TabletSeleccionarTemaDesafio() {
       // Usar lobby en lugar de getById para evitar problemas de autenticación
       const lobbyData = await sessionsAPI.getLobby(statusData.game_session.id);
       const gameData: GameSession = lobbyData.game_session;
-      
+
       const sessionId = statusData.game_session.id;
+
+      const resultsUrl = getResultsRedirectUrl(gameData, connId);
+      if (resultsUrl) { window.location.href = resultsUrl; return; }
 
       // Mostrar modal de U-Bot si no se ha visto
       if (gameData.current_stage_number === 2 && isInitialLoad) {
@@ -495,18 +501,14 @@ export function TabletSeleccionarTemaDesafio() {
       }
 
       if (currentStageNumber !== 2) {
-        // El profesor avanzó a otra etapa, redirigir según la etapa
-        if (currentStageNumber === 3) {
-          const normalizedName = currentActivityName;
-          if (normalizedName.includes('prototipo') || normalizedName.includes('lego')) {
-            window.location.href = `/tablet/etapa3/prototipo/?connection_id=${connId}`;
-          } else {
-            window.location.href = `/tablet/etapa3/resultados/?connection_id=${connId}`;
-          }
-        } else if (currentStageNumber === 4) {
-          const normalizedName = currentActivityName;
-          if (normalizedName.includes('formulario') || normalizedName.includes('pitch')) {
-            window.location.href = `/tablet/etapa4/formulario-pitch/?connection_id=${connId}`;
+        // Si avanzó a una etapa posterior → warp; si retrocedió → lobby
+        if (currentStageNumber > 2) {
+          const n = currentActivityName;
+          let destBase = '';
+          if (currentStageNumber === 3) destBase = '/tablet/etapa3/prototipo/';
+          else if (currentStageNumber === 4) destBase = n.includes('presentaci') ? '/tablet/etapa4/presentacion-pitch/' : '/tablet/etapa4/formulario-pitch/';
+          if (destBase) {
+            window.location.href = `/tablet/etapa-warp?stage=${currentStageNumber}&redirect=${encodeURIComponent(destBase)}&connection_id=${connId}`;
           } else {
             window.location.href = `/tablet/lobby?connection_id=${connId}`;
           }
@@ -901,6 +903,8 @@ export function TabletSeleccionarTemaDesafio() {
 
       if (remaining <= 0) {
         setTimerRemaining('00:00');
+        timeExpiredRef.current = true;
+        void advanceActivityOnTimerExpiration(gameSessionId);
         return;
       }
 
@@ -919,6 +923,10 @@ export function TabletSeleccionarTemaDesafio() {
             timerIntervalRef.current = null;
           }
           setTimerRemaining('00:00');
+          if (!timeExpiredRef.current) {
+            timeExpiredRef.current = true;
+            void advanceActivityOnTimerExpiration(gameSessionId);
+          }
         }
       };
 

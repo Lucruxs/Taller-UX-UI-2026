@@ -132,6 +132,11 @@ class GameSession(models.Model):
         related_name='current_sessions',
         verbose_name='Actividad Actual'
     )
+    show_results_stage = models.PositiveSmallIntegerField(
+        default=0,
+        verbose_name='Mostrar Resultados Etapa',
+        help_text='0=oculto; 1-4=mostrando resultados de esa etapa'
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -574,6 +579,13 @@ class TabletConnection(models.Model):
     last_seen = models.DateTimeField(
         auto_now=True,
         verbose_name='Última Vez Vista'
+    )
+    current_screen = models.CharField(
+        max_length=50,
+        default='',
+        blank=True,
+        verbose_name='Pantalla Actual',
+        help_text='Pantalla que reporta la tablet (ej: results_1, lobby, activity)'
     )
 
     class Meta:

@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { sessionsAPI, tabletConnectionsAPI } from '@/services';
 import { UBotWelcomeModal } from '@/components/UBotWelcomeModal';
+import { getResultsRedirectUrl } from '@/utils/tabletResultsRedirect';
 import { toast } from 'sonner';
 
 interface Student {
@@ -147,7 +148,10 @@ export function TabletLobby() {
               // Usar lobby en lugar de getById para evitar problemas de autenticación
               const updatedLobbyData = await sessionsAPI.getLobby(statusData.game_session.id);
               const updatedSession = updatedLobbyData.game_session;
-              
+
+              const resultsUrl = getResultsRedirectUrl(updatedSession, String(connectionId));
+              if (resultsUrl) { window.location.href = resultsUrl; return; }
+
               // Verificar si cambió la actividad o etapa
               const activityChanged = updatedSession.current_activity !== initialActivityId || 
                                      (updatedSession.current_activity_name || '') !== initialActivityName;
@@ -163,9 +167,20 @@ export function TabletLobby() {
                   clearInterval(intervalRef.current);
                   intervalRef.current = null;
                 }
-                
-                // Redirigir según la nueva actividad
-                await determineAndRedirectToActivity(statusData.game_session.id);
+
+                if (stageChanged && (updatedSession.current_stage_number ?? 0) > 0) {
+                  // Nueva etapa → animación warp + landing
+                  const newStage = updatedSession.current_stage_number!;
+                  const destBase = buildStageDestinationUrl(newStage, updatedSession.current_activity_name ?? '');
+                  if (destBase) {
+                    window.location.href = `/tablet/etapa-warp?stage=${newStage}&redirect=${encodeURIComponent(destBase)}&connection_id=${connectionId}`;
+                  } else {
+                    await determineAndRedirectToActivity(statusData.game_session.id);
+                  }
+                } else {
+                  // Misma etapa, actividad distinta → navegación directa
+                  await determineAndRedirectToActivity(statusData.game_session.id);
+                }
               }
             } catch (error) {
               console.error('Error verificando actividad:', error);
@@ -331,88 +346,64 @@ export function TabletLobby() {
     }
   };
 
+  const buildStageDestinationUrl = (stageNumber: number | null, activityName: string): string => {
+    const n = activityName.toLowerCase().trim();
+
+    if (!stageNumber && !n) return `/tablet/etapa1/video-institucional/`;
+
+    if (!stageNumber) {
+      if (n.includes('instructivo') || n.includes('instrucciones')) return `/tablet/etapa1/instructivo`;
+      if (n.includes('video') || n.includes('institucional')) return `/tablet/etapa1/video-institucional/`;
+      return '';
+    }
+
+    if (!n) {
+      return `/tablet/etapa${stageNumber}/resultados/`;
+    }
+
+    if (stageNumber === 1) {
+      if (n.includes('video') || n.includes('institucional')) return `/tablet/etapa1/video-institucional/`;
+      if (n.includes('instructivo') || n.includes('instrucciones')) return `/tablet/etapa1/instructivo`;
+      if (n.includes('personaliz')) return `/tablet/loading?redirect=/tablet/etapa1/personalizacion`;
+      if (n.includes('presentaci')) return `/tablet/etapa1/presentacion/`;
+    } else if (stageNumber === 2) {
+      if (n.includes('tema') || n.includes('seleccionar') || n.includes('desafio') || n.includes('desafío')) return `/tablet/etapa2/seleccionar-tema/`;
+      if (n.includes('bubble') || n.includes('mapa')) return `/tablet/etapa2/bubble-map/`;
+    } else if (stageNumber === 3) {
+      if (n.includes('prototipo') || n.includes('lego')) return `/tablet/etapa3/prototipo/`;
+      return `/tablet/etapa3/resultados/`;
+    } else if (stageNumber === 4) {
+      if (n.includes('presentacion') || n.includes('presentación')) return `/tablet/etapa4/presentacion-pitch/`;
+      if (n.includes('formulario') || n.includes('formul')) return `/tablet/etapa4/formulario-pitch/`;
+      if (n.includes('pitch')) return `/tablet/etapa4/formulario-pitch/`;
+    }
+
+    return '';
+  };
+
   const determineAndRedirectToActivity = async (gameSessionId: number) => {
     try {
-      // Usar lobby en lugar de getById para evitar problemas de autenticación
       const lobbyData = await sessionsAPI.getLobby(gameSessionId);
       const gameData = lobbyData.game_session;
-      const currentActivityName = gameData.current_activity_name;
+      const currentActivityName = gameData.current_activity_name ?? '';
       const currentActivityId = gameData.current_activity;
       const currentStageNumber = gameData.current_stage_number;
 
-      // Si no hay etapa ni actividad, estamos en el video institucional (previo a etapas)
       if (!currentStageNumber && !currentActivityName) {
         window.location.href = `/tablet/etapa1/video-institucional/?connection_id=${connectionId}`;
         return;
       }
 
-      // Si no hay actividad actual pero hay etapa, redirigir a resultados de la etapa correspondiente
       if (!currentActivityName || !currentActivityId) {
-        if (currentStageNumber === 1) {
-          window.location.href = `/tablet/etapa1/resultados/?connection_id=${connectionId}`;
-        } else if (currentStageNumber === 2) {
-          window.location.href = `/tablet/etapa2/resultados/?connection_id=${connectionId}`;
-        } else if (currentStageNumber === 3) {
-          window.location.href = `/tablet/etapa3/resultados/?connection_id=${connectionId}`;
-        } else if (currentStageNumber === 4) {
-          window.location.href = `/tablet/etapa4/resultados/?connection_id=${connectionId}`;
-        } else {
-          window.location.href = `/tablet/etapa1/resultados/?connection_id=${connectionId}`;
-        }
+        const stage = currentStageNumber ?? 1;
+        window.location.href = `/tablet/etapa${stage}/resultados/?connection_id=${connectionId}`;
         return;
       }
 
-      const normalizedActivityName = currentActivityName.toLowerCase().trim();
-      let redirectUrl = '';
-
-      // Actividades pre-etapa (Instructivo, Video Institucional): current_stage_number es null por diseño
-      if (!currentStageNumber) {
-        if (normalizedActivityName.includes('instructivo') || normalizedActivityName.includes('instrucciones')) {
-          redirectUrl = `/tablet/etapa1/instructivo?connection_id=${connectionId}`;
-        } else if (normalizedActivityName.includes('video') || normalizedActivityName.includes('institucional')) {
-          redirectUrl = `/tablet/etapa1/video-institucional/?connection_id=${connectionId}`;
-        }
-      } else if (currentStageNumber === 1) {
-        if (normalizedActivityName.includes('video') || normalizedActivityName.includes('institucional')) {
-          redirectUrl = `/tablet/etapa1/video-institucional/?connection_id=${connectionId}`;
-        } else if (normalizedActivityName.includes('instructivo') || normalizedActivityName.includes('instrucciones')) {
-          redirectUrl = `/tablet/etapa1/instructivo?connection_id=${connectionId}`;
-        } else if (normalizedActivityName.includes('personaliz')) {
-          redirectUrl = `/tablet/loading?redirect=/tablet/etapa1/personalizacion&connection_id=${connectionId}`;
-        } else if (normalizedActivityName.includes('presentaci')) {
-          redirectUrl = `/tablet/etapa1/presentacion/?connection_id=${connectionId}`;
-        }
-      } else if (currentStageNumber === 2) {
-        if (normalizedActivityName.includes('tema') || normalizedActivityName.includes('seleccionar') || normalizedActivityName.includes('desafio') || normalizedActivityName.includes('desafío')) {
-          redirectUrl = `/tablet/etapa2/seleccionar-tema/?connection_id=${connectionId}`;
-        } else if (normalizedActivityName.includes('bubble') || normalizedActivityName.includes('mapa')) {
-          redirectUrl = `/tablet/etapa2/bubble-map/?connection_id=${connectionId}`;
-        }
-      } else if (currentStageNumber === 3) {
-        // Etapa 3: Prototipo
-        if (normalizedActivityName.includes('prototipo') || normalizedActivityName.includes('lego')) {
-          redirectUrl = `/tablet/etapa3/prototipo/?connection_id=${connectionId}`;
-        } else {
-          // Si hay actividad pero no es prototipo, ir a resultados
-          redirectUrl = `/tablet/etapa3/resultados/?connection_id=${connectionId}`;
-        }
-      } else if (currentStageNumber === 4) {
-        // Priorizar detección de presentación
-        if (normalizedActivityName.includes('presentacion') || normalizedActivityName.includes('presentación')) {
-          redirectUrl = `/tablet/etapa4/presentacion-pitch/?connection_id=${connectionId}`;
-        } else if (normalizedActivityName.includes('formulario') || (normalizedActivityName.includes('pitch') && normalizedActivityName.includes('formul'))) {
-          redirectUrl = `/tablet/etapa4/formulario-pitch/?connection_id=${connectionId}`;
-        } else if (normalizedActivityName.includes('pitch')) {
-          // Si solo dice "pitch", verificar más específicamente
-          if (normalizedActivityName.includes('presentacion') || normalizedActivityName.includes('presentación')) {
-            redirectUrl = `/tablet/etapa4/presentacion-pitch/?connection_id=${connectionId}`;
-          } else {
-            redirectUrl = `/tablet/etapa4/formulario-pitch/?connection_id=${connectionId}`;
-          }
-        }
-      }
-
-      if (redirectUrl) {
+      const destBase = buildStageDestinationUrl(currentStageNumber, currentActivityName);
+      if (destBase) {
+        const sep = destBase.includes('?') ? '&' : '?';
+        const redirectUrl = `${destBase}${sep}connection_id=${connectionId}`;
         console.log(`🔄 Redirigiendo a: ${redirectUrl} (Etapa ${currentStageNumber}, Actividad: ${currentActivityName})`);
         window.location.href = redirectUrl;
       } else {

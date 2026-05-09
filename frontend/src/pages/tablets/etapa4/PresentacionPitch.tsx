@@ -1,20 +1,24 @@
 import { useState, useEffect, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import {
-  Loader2, Clock, Mic, Star, FileText, Target, Lightbulb, CheckCircle2, Image as ImageIcon, Eye, Coins, Users, Bot, Award
-} from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
+import { Loader2, Coins } from 'lucide-react';
 import { UBotPresentacionPitchModal } from '@/components/UBotPresentacionPitchModal';
-import { 
-  sessionsAPI, 
-  sessionStagesAPI, 
-  peerEvaluationsAPI, 
+import StarField from '../etapa2/StarField';
+import {
+  sessionsAPI,
+  sessionStagesAPI,
+  peerEvaluationsAPI,
   tabletConnectionsAPI,
-  teamPersonalizationsAPI
+  teamPersonalizationsAPI,
 } from '@/services';
 import { toast } from 'sonner';
+
+const GALACTIC_CSS = `
+@keyframes micPulse{0%,100%{opacity:.5;transform:scale(.94)}50%{opacity:.95;transform:scale(1.05)}}
+@keyframes micFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+@keyframes hgFloat{0%,100%{transform:rotate(0deg)}50%{transform:rotate(180deg)}}
+@keyframes livePulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.85)}}
+@keyframes phPulse{0%,100%{opacity:1}50%{opacity:.55}}
+`;
 
 interface Team {
   id: number;
@@ -44,6 +48,9 @@ interface PresentationStatus {
 interface GameSession {
   id: number;
   current_stage_number?: number;
+  status?: string;
+  current_activity_name?: string | null;
+  current_activity?: number | null;
 }
 
 export function TabletPresentacionPitch() {
@@ -52,7 +59,6 @@ export function TabletPresentacionPitch() {
   const [team, setTeam] = useState<Team | null>(null);
   const [personalization, setPersonalization] = useState<{ team_name?: string } | null>(null);
   const [gameSessionId, setGameSessionId] = useState<number | null>(null);
-  const [sessionStageId, setSessionStageId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [connectionId, setConnectionId] = useState<string | null>(null);
   const [showUBotModal, setShowUBotModal] = useState(false);
@@ -91,11 +97,9 @@ export function TabletPresentacionPitch() {
       return;
     }
     setConnectionId(connId);
-    
-    // Cargar estado inicial
+
     loadGameState(connId);
-    
-    // Polling optimizado: más frecuente durante presentación/evaluación
+
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
     }
@@ -115,23 +119,19 @@ export function TabletPresentacionPitch() {
     if (!team || !gameSessionId || !presentationStatus) {
       return;
     }
-    
+
     const currentState = presentationStatus.presentation_state || 'not_started';
     const currentEvaluatedTeamId = presentationStatus.current_presentation_team_id;
-    const isEvaluatingOtherTeam = currentState === 'evaluating' && 
-                                   currentEvaluatedTeamId && 
+    const isEvaluatingOtherTeam = currentState === 'evaluating' &&
+                                   currentEvaluatedTeamId &&
                                    currentEvaluatedTeamId !== team.id;
-    
+
     if (isEvaluatingOtherTeam) {
-      // Solo verificar si cambió el equipo evaluado o si no se ha verificado aún
-      if (previousEvaluatedTeamIdRef.current !== currentEvaluatedTeamId || 
+      if (previousEvaluatedTeamIdRef.current !== currentEvaluatedTeamId ||
           lastCheckedTeamIdRef.current !== currentEvaluatedTeamId) {
-        checkExistingEvaluation(currentEvaluatedTeamId).catch(() => {
-          // Silently fail
-        });
+        checkExistingEvaluation(currentEvaluatedTeamId).catch(() => {});
       }
     } else if (currentState !== 'evaluating') {
-      // Si no estamos evaluando, resetear estado y referencias
       setEvaluationSubmitted(false);
       lastCheckedTeamIdRef.current = null;
       checkingEvaluationRef.current = false;
@@ -141,11 +141,11 @@ export function TabletPresentacionPitch() {
   // Mostrar modal de U-Bot solo cuando el equipo está preparándose
   useEffect(() => {
     if (!team || !presentationStatus) return;
-    
+
     const isMyTurn = presentationStatus.current_presentation_team_id === team.id;
     const presentationState = presentationStatus.presentation_state || 'not_started';
     const isPreparing = presentationState === 'preparing' && isMyTurn;
-    
+
     if (isPreparing && gameSessionId && team) {
       const ubotKey = `ubot_presentacion_pitch_${gameSessionId}_${team.id}`;
       const hasSeenUBot = localStorage.getItem(ubotKey);
@@ -161,31 +161,27 @@ export function TabletPresentacionPitch() {
   // Cargar evaluaciones automáticamente cuando el equipo está esperando evaluaciones
   useEffect(() => {
     if (!team || !gameSessionId || !presentationStatus) {
-      // Limpiar intervalo si no hay datos necesarios
       if (evalIntervalRef.current) {
         clearInterval(evalIntervalRef.current);
         evalIntervalRef.current = null;
       }
       return;
     }
-    
+
     const currentState = presentationStatus.presentation_state || 'not_started';
     const currentIsMyTurn = presentationStatus.current_presentation_team_id === team.id;
-    
+
     if (currentState === 'evaluating' && currentIsMyTurn) {
-      // Cargar evaluaciones inmediatamente
       loadMyEvaluations();
-      
-      // Limpiar intervalo anterior si existe
+
       if (evalIntervalRef.current) {
         clearInterval(evalIntervalRef.current);
       }
-      
-      // Polling cada 2 segundos para actualizar evaluaciones
+
       evalIntervalRef.current = setInterval(() => {
         loadMyEvaluations();
       }, 2000);
-      
+
       return () => {
         if (evalIntervalRef.current) {
           clearInterval(evalIntervalRef.current);
@@ -193,7 +189,6 @@ export function TabletPresentacionPitch() {
         }
       };
     } else {
-      // Limpiar intervalo si no estamos en el estado correcto
       if (evalIntervalRef.current) {
         clearInterval(evalIntervalRef.current);
         evalIntervalRef.current = null;
@@ -220,10 +215,9 @@ export function TabletPresentacionPitch() {
       setTeam(teamData);
       setGameSessionId(statusData.game_session.id);
 
-      // Cargar personalización del equipo
       try {
-        const persList = await teamPersonalizationsAPI.list({ team: teamData.id });
-        const persArray = Array.isArray(persList) ? persList : (Array.isArray(persList.results) ? persList.results : []);
+        const persList = await teamPersonalizationsAPI.list({ team: teamData.id }) as any[];
+        const persArray = Array.isArray(persList) ? persList : [];
         if (persArray.length > 0) {
           setPersonalization(persArray[0]);
         }
@@ -231,13 +225,9 @@ export function TabletPresentacionPitch() {
         console.error('Error cargando personalización:', error);
       }
 
-      // Usar lobby en lugar de getById para evitar problemas de autenticación
       const lobbyData = await sessionsAPI.getLobby(statusData.game_session.id);
       const gameData: GameSession = lobbyData.game_session;
-      const sessionId = statusData.game_session.id;
 
-
-      // Si la sesión finaliza, redirigir al join (excepto en reflexión)
       if (gameData.status === 'finished' || gameData.status === 'completed') {
         toast.info('La sesión ha finalizado. Redirigiendo...');
         setTimeout(() => navigate('/tablet/join'), 2000);
@@ -248,8 +238,6 @@ export function TabletPresentacionPitch() {
       const currentActivityName = gameData.current_activity_name?.toLowerCase() || '';
       const currentActivityId = gameData.current_activity;
 
-
-      // Si no estamos en etapa 4, redirigir según la etapa actual
       if (currentStageNumber !== 4) {
         if (currentStageNumber === 3) {
           const normalizedName = currentActivityName;
@@ -267,7 +255,6 @@ export function TabletPresentacionPitch() {
         return;
       }
 
-      // Si estamos en etapa 4 pero no hay actividad actual, la etapa fue completada
       if (currentStageNumber === 4 && (!currentActivityName || !currentActivityId)) {
         window.location.href = `/tablet/resultados/?connection_id=${connId}&stage_id=4`;
         return;
@@ -277,45 +264,33 @@ export function TabletPresentacionPitch() {
       const stagesList = Array.isArray(stagesData) ? stagesData : [stagesData];
       const stage4 = stagesList.find((s: any) => s.stage_number === 4) || null;
 
-      // Si la etapa 4 está marcada como completada, redirigir a resultados
       if (stage4 && stage4.status === 'completed') {
         window.location.href = `/tablet/resultados/?connection_id=${connId}&stage_id=4`;
         return;
       }
 
       if (stage4) {
-        // Verificar si todas las presentaciones están completadas (no hay current_presentation_team_id y el estado no es 'not_started')
-        const allPresentationsCompleted = 
-          !stage4.current_presentation_team_id && 
+        const allPresentationsCompleted =
+          !stage4.current_presentation_team_id &&
           stage4.presentation_state !== 'not_started' &&
           stage4.presentation_order &&
           stage4.presentation_order.length > 0;
-        
-        // Verificar si no hay actividad actual (significa que el profesor completó la etapa)
+
         const noCurrentActivity = !currentActivityName || currentActivityName.trim() === '';
-        
-        // Si todas las presentaciones están completadas o no hay actividad actual, redirigir a resultados
+
         if (allPresentationsCompleted || noCurrentActivity) {
           window.location.href = `/tablet/resultados/?connection_id=${connId}&stage_id=4`;
           return;
         }
-        
-        setSessionStageId(stage4.id);
-        
-        // Si estamos en estado evaluating para otro equipo al cargar la página, inicializar la referencia
-        if (stage4.presentation_state === 'evaluating' && 
-            stage4.current_presentation_team_id && 
+
+        if (stage4.presentation_state === 'evaluating' &&
+            stage4.current_presentation_team_id &&
             stage4.current_presentation_team_id !== teamData.id) {
           previousEvaluatedTeamIdRef.current = stage4.current_presentation_team_id;
         }
-        
-        // Cargar estado de presentación INMEDIATAMENTE (no esperar)
-        // La verificación de evaluación se hace en loadPresentationStatus y useEffect
-        loadPresentationStatus(stage4.id, connId).catch(() => {
-          // Silently fail, el polling lo reintentará
-        });
+
+        loadPresentationStatus(stage4.id, connId).catch(() => {});
       } else {
-        // Si no hay stage4 pero estamos en etapa 4 y no hay actividad, redirigir a resultados
         if (currentStageNumber === 4 && (!currentActivityName || !currentActivityId)) {
           window.location.href = `/tablet/resultados/?connection_id=${connId}&stage_id=4`;
           return;
@@ -323,8 +298,6 @@ export function TabletPresentacionPitch() {
       }
 
       setLoading(false);
-      
-      // El polling se ajusta automáticamente en loadPresentationStatus según el estado
     } catch (error: any) {
       console.error('Error loading game state:', error);
       toast.error('Error de conexión: ' + (error.response?.data?.error || error.message || 'Error desconocido'));
@@ -335,27 +308,21 @@ export function TabletPresentacionPitch() {
   const loadPresentationStatus = async (stageId: number, connId?: string) => {
     try {
       const status: PresentationStatus = await sessionStagesAPI.getPresentationStatus(stageId);
-      
-      // Detectar cambios de estado ANTES de actualizar las referencias
+
       const stateChanged = previousPresentationStateRef.current !== status.presentation_state;
-      const teamChanged = previousPresentationTeamIdRef.current !== status.current_presentation_team_id;
       const wasPreparing = previousPresentationStateRef.current === 'preparing';
       const isNowPresenting = status.presentation_state === 'presenting';
       const wasNotPresenting = previousPresentationStateRef.current !== 'presenting';
-      
+
       setPresentationStatus(status);
-      
-      // Actualizar referencias DESPUÉS de verificar cambios
+
       previousPresentationStateRef.current = status.presentation_state;
       previousPresentationTeamIdRef.current = status.current_presentation_team_id || null;
-      
-      // La verificación de evaluación se hace en el useEffect para evitar duplicados
 
-      // Ajustar polling según el estado actual (solo si no existe)
       if (!intervalRef.current) {
         const currentConnId = connId || connectionId;
         if (currentConnId) {
-          const pollInterval = status.presentation_state === 'preparing' ? 2000 : 
+          const pollInterval = status.presentation_state === 'preparing' ? 2000 :
                               status.presentation_state === 'evaluating' ? 3000 : 3000;
           intervalRef.current = setInterval(() => {
             loadGameState(currentConnId);
@@ -363,15 +330,12 @@ export function TabletPresentacionPitch() {
         }
       }
 
-      // Verificar si cambió el equipo que se está evaluando
-      // IMPORTANTE: Esto debe verificarse ANTES de actualizar las referencias
-      const evaluatedTeamChanged = 
+      const evaluatedTeamChanged =
         status.presentation_state === 'evaluating' &&
         status.current_presentation_team_id &&
         previousEvaluatedTeamIdRef.current !== null &&
         previousEvaluatedTeamIdRef.current !== status.current_presentation_team_id;
 
-      // Si cambió el equipo que se está evaluando, resetear el estado de evaluación
       if (evaluatedTeamChanged) {
         setEvaluationSubmitted(false);
         setEvaluationScores({
@@ -381,21 +345,19 @@ export function TabletPresentacionPitch() {
           feedback: '',
         });
         previousEvaluatedTeamIdRef.current = status.current_presentation_team_id;
-        lastCheckedTeamIdRef.current = null; // Resetear para forzar verificación
+        lastCheckedTeamIdRef.current = null;
         checkingEvaluationRef.current = false;
-        // Verificar evaluación sin await (no bloquear)
-        checkExistingEvaluation(status.current_presentation_team_id).catch(() => {});
-      } else if (status.presentation_state === 'evaluating' && 
-          status.current_presentation_team_id && 
+        if (status.current_presentation_team_id) {
+          checkExistingEvaluation(status.current_presentation_team_id).catch(() => {});
+        }
+      } else if (status.presentation_state === 'evaluating' &&
+          status.current_presentation_team_id &&
           status.current_presentation_team_id !== team?.id) {
-        // Actualizar referencia si cambió
         if (previousEvaluatedTeamIdRef.current !== status.current_presentation_team_id) {
           previousEvaluatedTeamIdRef.current = status.current_presentation_team_id;
-          lastCheckedTeamIdRef.current = null; // Resetear para forzar verificación
+          lastCheckedTeamIdRef.current = null;
         }
-        // La verificación se hace en el useEffect, no aquí para evitar duplicados
       } else if (status.presentation_state !== 'evaluating') {
-        // Resetear si no estamos en evaluating
         if (previousEvaluatedTeamIdRef.current !== null) {
           previousEvaluatedTeamIdRef.current = null;
           lastCheckedTeamIdRef.current = null;
@@ -403,54 +365,42 @@ export function TabletPresentacionPitch() {
           setEvaluationSubmitted(false);
         }
       } else if (status.presentation_state === 'evaluating' && !previousEvaluatedTeamIdRef.current && status.current_presentation_team_id) {
-        // Primera vez que entramos a evaluating - inicializar referencia
         previousEvaluatedTeamIdRef.current = status.current_presentation_team_id;
-        // La verificación se hace en el useEffect
       }
-      
-      // CRÍTICO: Si estamos en evaluating y es nuestro turno, cargar evaluaciones recibidas
+
       if (status.presentation_state === 'evaluating' && status.current_presentation_team_id === team?.id) {
-        // Cargar evaluaciones recibidas para el equipo que presentó
         if (team && gameSessionId) {
           loadMyEvaluations();
         }
       }
 
-      // Iniciar timer si hay un equipo presentando (todos los equipos ven el timer)
       if (isNowPresenting && status.current_presentation_team_id) {
-        // Iniciar timer inmediatamente si no hay uno activo, si el estado cambió, o si acabamos de entrar a presenting
         if (!timerIntervalRef.current || stateChanged || wasPreparing || (isNowPresenting && wasNotPresenting)) {
-          // Iniciar timer inmediatamente (optimización: no esperar verificación del servidor)
-          startPresentationTimer(stageId).catch(() => {
-            // Silently fail, el timer seguirá funcionando con el valor por defecto
-          });
+          startPresentationTimer(stageId).catch(() => {});
         }
       } else {
-        // Detener timer si ya no está presentando
         if (timerIntervalRef.current) {
           clearInterval(timerIntervalRef.current);
           timerIntervalRef.current = null;
         }
-        // Resetear a valor inicial solo si no estamos en ningún estado relacionado con presentación
         if (status.presentation_state !== 'presenting' && status.presentation_state !== 'preparing') {
           setTimerRemaining('01:30');
           localTimerSecondsRef.current = 90;
         }
       }
     } catch (error) {
-      // Silently fail, el polling lo reintentará
+      // Silently fail
     }
   };
 
   const checkExistingEvaluation = async (evaluatedTeamId: number) => {
     const currentTeam = team;
     const currentGameSessionId = gameSessionId;
-    
+
     if (!currentTeam || !currentGameSessionId) {
       return;
     }
 
-    // Evitar verificaciones duplicadas para el mismo equipo
     if (checkingEvaluationRef.current && lastCheckedTeamIdRef.current === evaluatedTeamId) {
       return;
     }
@@ -458,7 +408,7 @@ export function TabletPresentacionPitch() {
     checkingEvaluationRef.current = true;
     lastCheckedTeamIdRef.current = evaluatedTeamId;
     setIsCheckingEvaluation(true);
-    
+
     try {
       const evaluations = await peerEvaluationsAPI.list({
         evaluator_team: currentTeam.id,
@@ -466,7 +416,7 @@ export function TabletPresentacionPitch() {
         game_session: currentGameSessionId
       });
       const evaluationsList = Array.isArray(evaluations) ? evaluations : [evaluations];
-      
+
       if (evaluationsList.length > 0) {
         const evaluation = evaluationsList[0];
         setEvaluationSubmitted(true);
@@ -480,7 +430,6 @@ export function TabletPresentacionPitch() {
         setEvaluationSubmitted(false);
       }
     } catch (error: any) {
-      // En caso de error, asumir que no hay evaluación y mostrar el formulario
       setEvaluationSubmitted(false);
     } finally {
       setIsCheckingEvaluation(false);
@@ -489,38 +438,33 @@ export function TabletPresentacionPitch() {
   };
 
   const startPresentationTimer = async (stageId: number) => {
-    // Limpiar intervalo anterior si existe
     if (timerIntervalRef.current) {
       clearInterval(timerIntervalRef.current);
       timerIntervalRef.current = null;
     }
 
-    // Obtener el temporizador del servidor INMEDIATAMENTE (crítico para sincronización)
-    let serverRemaining = 90; // Valor por defecto
+    let serverRemaining = 90;
     let isFinished = false;
-    
+
     try {
       const timerData = await sessionStagesAPI.getPresentationTimer(stageId);
-      
+
       if (timerData && !timerData.error) {
         isFinished = timerData.is_finished === true;
         serverRemaining = timerData.remaining_seconds ?? 90;
       }
     } catch (error) {
-      // Silently fail, usar valor por defecto
+      // Silently fail
     }
 
-    // Si el timer ya terminó, mostrar 00:00 inmediatamente
     if (isFinished || serverRemaining <= 0) {
       localTimerSecondsRef.current = 0;
       setTimerRemaining('00:00');
       return;
     }
-    
-    // Establecer el tiempo restante del servidor
+
     localTimerSecondsRef.current = serverRemaining;
 
-    // Actualizar display INMEDIATAMENTE con el valor del servidor
     const minutes = Math.floor(localTimerSecondsRef.current / 60);
     const seconds = localTimerSecondsRef.current % 60;
     setTimerRemaining(`${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`);
@@ -528,12 +472,11 @@ export function TabletPresentacionPitch() {
     const stageIdForTimer = stageId;
     syncCounterRef.current = 0;
 
-    // Actualizar cada segundo
     timerIntervalRef.current = setInterval(() => {
       if (localTimerSecondsRef.current > 0) {
         localTimerSecondsRef.current--;
       }
-      
+
       const minutes = Math.floor(localTimerSecondsRef.current / 60);
       const seconds = localTimerSecondsRef.current % 60;
       setTimerRemaining(`${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`);
@@ -549,7 +492,6 @@ export function TabletPresentacionPitch() {
 
       syncCounterRef.current++;
 
-      // Sincronizar con el servidor cada 5 segundos (igual que el profesor para mejor sincronización)
       if (syncCounterRef.current % 5 === 0 && localTimerSecondsRef.current > 0) {
         (async () => {
           try {
@@ -557,7 +499,7 @@ export function TabletPresentacionPitch() {
             if (timerData && !timerData.error) {
               const isFinished = timerData.is_finished === true;
               const serverRemaining = timerData.remaining_seconds ?? 0;
-              
+
               if (isFinished || serverRemaining <= 0) {
                 if (timerIntervalRef.current) {
                   clearInterval(timerIntervalRef.current);
@@ -567,8 +509,7 @@ export function TabletPresentacionPitch() {
                 setTimerRemaining('00:00');
                 return;
               }
-              
-              // Si hay una diferencia significativa (>2 segundos), sincronizar
+
               if (Math.abs(localTimerSecondsRef.current - serverRemaining) > 2) {
                 localTimerSecondsRef.current = serverRemaining;
                 const minutes = Math.floor(localTimerSecondsRef.current / 60);
@@ -590,10 +531,9 @@ export function TabletPresentacionPitch() {
     try {
       const evaluations = await peerEvaluationsAPI.forTeam(team.id, gameSessionId);
       const evaluationsList = Array.isArray(evaluations) ? evaluations : [evaluations];
-      
+
       setReceivedEvaluations(evaluationsList);
 
-      // Calcular progreso de evaluaciones
       setPresentationStatus((prevStatus) => {
         if (prevStatus) {
           const otherTeams = prevStatus.teams.filter(t => t.id !== team.id);
@@ -615,11 +555,9 @@ export function TabletPresentacionPitch() {
     if (!team || !gameSessionId || !presentationStatus?.current_presentation_team_id || isSubmittingEvaluation) return;
 
     const evaluatedTeamId = presentationStatus.current_presentation_team_id;
-    
-    // Mostrar feedback inmediato
+
     setIsSubmittingEvaluation(true);
-    
-    // Verificar si ya existe (rápido, sin bloquear)
+
     const checkExisting = peerEvaluationsAPI.list({
       evaluator_team: team.id,
       evaluated_team: evaluatedTeamId,
@@ -627,8 +565,7 @@ export function TabletPresentacionPitch() {
     }).catch(() => null);
 
     try {
-      // Crear evaluación (operación principal)
-      const response = await peerEvaluationsAPI.create({
+      await peerEvaluationsAPI.create({
         evaluator_team_id: team.id,
         evaluated_team_id: evaluatedTeamId,
         game_session_id: gameSessionId,
@@ -640,17 +577,14 @@ export function TabletPresentacionPitch() {
         feedback: evaluationScores.feedback,
       });
 
-      // Mostrar éxito INMEDIATAMENTE
       setEvaluationSubmitted(true);
       setIsSubmittingEvaluation(false);
       toast.success('✓ Evaluación enviada exitosamente');
 
-      // Verificar resultado de checkExisting (ya estaba en paralelo)
       const existingEvaluations = await checkExisting;
       if (existingEvaluations) {
         const existingList = Array.isArray(existingEvaluations) ? existingEvaluations : [existingEvaluations];
         if (existingList.length > 0) {
-          // Ya existe, actualizar estado
           const evaluation = existingList[0];
           setEvaluationScores({
             clarity: evaluation.criteria_scores?.clarity || 5,
@@ -661,7 +595,6 @@ export function TabletPresentacionPitch() {
         }
       }
 
-      // Actualizar tokens en background (no bloquea)
       if (connectionId) {
         tabletConnectionsAPI.getStatus(connectionId)
           .then((statusData) => {
@@ -669,14 +602,11 @@ export function TabletPresentacionPitch() {
               setTeam(statusData.team);
             }
           })
-          .catch(() => {
-            // Silently fail
-          });
+          .catch(() => {});
       }
     } catch (error: any) {
       setIsSubmittingEvaluation(false);
-      
-      // Si el error es que ya existe
+
       if (error.response?.status === 400 || error.response?.data?.error?.includes('ya existe')) {
         setEvaluationSubmitted(true);
         await checkExistingEvaluation(evaluatedTeamId);
@@ -687,22 +617,6 @@ export function TabletPresentacionPitch() {
     }
   };
 
-  const getTeamColorHex = (color: string) => {
-    const colorMap: Record<string, string> = {
-      Verde: '#28a745',
-      Azul: '#007bff',
-      Rojo: '#dc3545',
-      Amarillo: '#ffc107',
-      Naranja: '#fd7e14',
-      Morado: '#6f42c1',
-      Rosa: '#e83e8c',
-      Cian: '#17a2b8',
-      Gris: '#6c757d',
-      Marrón: '#795548',
-    };
-    return colorMap[color] || '#667eea';
-  };
-
   const getEvaluatedTeamName = () => {
     if (!presentationStatus?.current_presentation_team_id) return '';
     const evaluatedTeam = presentationStatus.teams.find(
@@ -711,39 +625,9 @@ export function TabletPresentacionPitch() {
     return getTeamName(evaluatedTeam);
   };
 
-  const getMyPosition = () => {
-    if (!team || !presentationStatus?.presentation_order) return null;
-    const position = presentationStatus.presentation_order.findIndex(teamId => teamId === team.id);
-    return position >= 0 ? position + 1 : null; // +1 porque es 1-indexado
-  };
-
-  const getCurrentPresentingPosition = () => {
-    if (!presentationStatus?.current_presentation_team_id || !presentationStatus?.presentation_order) return null;
-    const position = presentationStatus.presentation_order.findIndex(
-      teamId => teamId === presentationStatus.current_presentation_team_id
-    );
-    return position >= 0 ? position + 1 : null;
-  };
-
-  const getPositionText = (position: number) => {
-    const positionMap: Record<number, string> = {
-      1: 'primero',
-      2: 'segundo',
-      3: 'tercero',
-      4: 'cuarto',
-      5: 'quinto',
-      6: 'sexto',
-      7: 'séptimo',
-      8: 'octavo',
-      9: 'noveno',
-      10: 'décimo',
-    };
-    return positionMap[position] || `${position}°`;
-  };
-
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#093c92] via-blue-600 to-[#f757ac]">
+      <div style={{ background: '#050818', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <Loader2 className="w-8 h-8 animate-spin text-white" />
       </div>
     );
@@ -751,9 +635,9 @@ export function TabletPresentacionPitch() {
 
   if (!team || !presentationStatus) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#093c92] via-blue-600 to-[#f757ac]">
-        <div className="text-white text-center">
-          <p className="text-xl mb-4">Cargando información de presentación...</p>
+      <div style={{ background: '#050818', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ color: '#fff', textAlign: 'center', fontFamily: "'Exo 2', sans-serif" }}>
+          <p style={{ fontSize: 18, marginBottom: 16 }}>Cargando información de presentación...</p>
           <Loader2 className="w-8 h-8 animate-spin mx-auto" />
         </div>
       </div>
@@ -763,21 +647,17 @@ export function TabletPresentacionPitch() {
   const isMyTurn = presentationStatus.current_presentation_team_id === team.id;
   const presentationState = presentationStatus.presentation_state || 'not_started';
 
-  // Función helper para obtener el nombre del equipo (con personalización si existe)
   const getTeamDisplayName = (): string => {
     if (!team) return '';
     if (personalization?.team_name) {
       return personalization.team_name;
     }
-    // Si el nombre del equipo es "Equipo [Color]", devolver solo el color
     const match = team.name?.match(/^Equipo\s+(.+)$/i);
     return match ? match[1] : (team.name || team.color);
   };
 
-  // Función helper para obtener el nombre de cualquier equipo
   const getTeamName = (teamData: Team | null | undefined): string => {
     if (!teamData) return '';
-    // Si el nombre del equipo es "Equipo [Color]", devolver solo el color
     const match = teamData.name?.match(/^Equipo\s+(.+)$/i);
     return match ? match[1] : (teamData.name || teamData.color);
   };
@@ -786,9 +666,7 @@ export function TabletPresentacionPitch() {
   const isPresenting = presentationState === 'presenting' && isMyTurn;
   const isPreparing = presentationState === 'preparing' && isMyTurn;
   const isWaiting = !isMyTurn && presentationState !== 'evaluating';
-  const isWaitingForEvaluations = presentationState === 'evaluating' && isMyTurn;
 
-  // Construir URL de prototipo si existe
   let prototypeUrl = presentationStatus.current_team_prototype;
   if (prototypeUrl && prototypeUrl.startsWith('/')) {
     const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
@@ -797,411 +675,336 @@ export function TabletPresentacionPitch() {
   }
 
   return (
-    <div className="relative min-h-screen overflow-hidden">
-      {/* Fondo animado */}
-      <div className="absolute inset-0 bg-gradient-to-br from-[#093c92] via-blue-600 to-[#f757ac]">
-        <motion.div
-          animate={{ backgroundPosition: ['0% 0%', '100% 100%'] }}
-          transition={{ duration: 20, repeat: Infinity, repeatType: 'reverse' }}
-          className="absolute inset-0 opacity-20"
-          style={{ backgroundImage: 'radial-gradient(circle, white 1px, transparent 1px)', backgroundSize: '50px 50px' }}
-        />
-        <div className="absolute inset-0">
-          {[...Array(20)].map((_, i) => (
-            <motion.div
-              key={i}
-              className="absolute w-2 h-2 bg-white rounded-full opacity-30"
-              initial={{ x: Math.random() * (typeof window !== 'undefined' ? window.innerWidth : 1920), y: Math.random() * (typeof window !== 'undefined' ? window.innerHeight : 1080) }}
-              animate={{ y: [null, Math.random() * (typeof window !== 'undefined' ? window.innerHeight : 1080)], opacity: [0.3, 0.6, 0.3] }}
-              transition={{ duration: 3 + Math.random() * 2, repeat: Infinity, delay: Math.random() * 2 }}
-            />
-          ))}
-        </div>
-      </div>
-
-
-      <div className="relative z-10 p-3 sm:p-4">
-      <div className="max-w-6xl mx-auto">
-        {/* Header */}
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-white/95 backdrop-blur-sm rounded-2xl sm:rounded-3xl shadow-2xl p-4 sm:p-6 mb-4 sm:mb-6 flex items-center justify-between flex-wrap gap-4"
-        >
-          <div className="flex items-center gap-3 sm:gap-4">
-            <motion.div
-              whileHover={{ scale: 1.1, rotate: 5 }}
-              whileTap={{ scale: 0.95 }}
-              className="w-12 h-12 sm:w-14 sm:h-14 rounded-full flex items-center justify-center text-white text-lg sm:text-xl font-bold shadow-lg"
-              style={{ backgroundColor: getTeamColorHex(team.color) }}
-            >
-              {team.color.charAt(0).toUpperCase()}
-            </motion.div>
-            <div>
-              <h3 className="text-lg sm:text-xl font-bold text-gray-800">
-                {personalization?.team_name 
-                  ? `Start-up ${personalization.team_name}` 
-                  : (team.name?.replace(/^Equipo\s+/i, 'Start-up ') || `Start-up ${team.color}`)
-                }
-              </h3>
-              <p className="text-xs sm:text-sm text-gray-600">Equipo {team.color}</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            {team && isPreparing && (
-              <motion.button
-                onClick={() => setShowUBotModal(true)}
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                className="bg-gradient-to-r from-pink-500 to-pink-600 text-white px-5 py-2.5 rounded-full font-semibold text-sm sm:text-base flex items-center gap-2 shadow-lg"
-              >
-                <Bot className="w-4 h-4 sm:w-5 sm:h-5" />
-                <span>U-Bot</span>
-              </motion.button>
-            )}
-            <motion.div
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              className="bg-gradient-to-r from-[#093c92] to-blue-700 text-white px-5 py-2.5 rounded-full font-semibold text-sm sm:text-base flex items-center gap-2 shadow-lg"
-            >
-              <Award className="w-4 h-4 sm:w-5 sm:h-5" /> {team.tokens_total || team.tokens || 0} Tokens
-            </motion.div>
-          </div>
-        </motion.div>
+    <div style={{ background: '#050818', minHeight: '100vh', fontFamily: "'Exo 2', sans-serif", position: 'relative' }}>
+      <style>{GALACTIC_CSS}</style>
+      <StarField />
+      <div style={{ position: 'relative', zIndex: 10, padding: '24px 20px', maxWidth: 860, margin: '0 auto' }}>
 
         {/* Estado: Esperando Orden */}
         {presentationState === 'not_started' && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="bg-white rounded-xl shadow-xl p-6 sm:p-8 text-center"
-          >
-            <div className="text-5xl sm:text-6xl mb-4">⏳</div>
-            <h2 className="text-xl sm:text-2xl font-bold text-[#093c92] mb-3 sm:mb-4">
-              Esperando Orden de Presentación
-            </h2>
-            <p className="text-gray-600 text-sm sm:text-base">
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', gap: 20, textAlign: 'center' }}>
+            <div style={{ fontSize: 60 }}>⏳</div>
+            <h2 style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 'clamp(18px,3vw,26px)', fontWeight: 900, color: '#fff', letterSpacing: 2, textTransform: 'uppercase', margin: 0 }}>Esperando Orden de Presentación</h2>
+            <p style={{ fontFamily: "'Exo 2', sans-serif", fontSize: 15, fontWeight: 300, color: 'rgba(255,255,255,0.5)', maxWidth: 500, lineHeight: 1.7, margin: 0 }}>
               El profesor está configurando el orden de presentación. Espera a que se inicien las presentaciones.
             </p>
-          </motion.div>
+          </div>
         )}
 
-        {/* Estado: Preparación */}
+        {/* Estado: Llamado a Escenario */}
         {isPreparing && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="bg-gradient-to-r from-[#093c92] via-[#764ba2] to-[#093c92] rounded-xl shadow-xl p-8 sm:p-12 md:p-16 text-center text-white relative overflow-hidden min-h-[400px] sm:min-h-[500px] flex items-center justify-center"
-          >
-            <div className="absolute top-0 right-0 w-40 h-40 bg-white/10 rounded-full -mr-20 -mt-20" />
-            <div className="absolute bottom-0 left-0 w-32 h-32 bg-white/10 rounded-full -ml-16 -mb-16" />
-            <div className="relative z-10 w-full">
-              <div className="text-6xl sm:text-7xl md:text-8xl mb-6 sm:mb-8">🎤</div>
-              <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-4 sm:mb-6">⚠️ LLAMADO A ESCENARIO</h2>
-              <p className="text-base sm:text-lg md:text-xl mb-3 sm:mb-4 opacity-90 font-semibold">
-              Start-up <span className="font-bold text-white">{getTeamDisplayName().toUpperCase()}</span> requerida en el Centro de Comando.
-            </p>
-              <p className="text-sm sm:text-base md:text-lg opacity-80 max-w-2xl mx-auto">
-              El momento ha llegado. Diríjanse al frente de la sala inmediatamente. El Profesor iniciará el cronómetro apenas tomen posición.
-            </p>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '70vh', gap: 24, textAlign: 'center' }}>
+            {/* Badge */}
+            <div style={{
+              fontFamily: 'Orbitron, sans-serif', fontSize: 10, fontWeight: 600, letterSpacing: 5,
+              color: '#f97316', background: 'rgba(249,115,22,0.08)',
+              border: '1px solid rgba(249,115,22,0.3)', borderRadius: 50, padding: '6px 20px',
+              textTransform: 'uppercase', animation: 'phPulse 1.4s ease-in-out infinite',
+            }}>
+              ⚠ Llamado urgente
             </div>
-          </motion.div>
+
+            {/* Mic animation */}
+            <div style={{ position: 'relative', width: 140, height: 140, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{
+                position: 'absolute', inset: 0, borderRadius: '50%',
+                background: 'radial-gradient(circle,rgba(249,115,22,0.5) 0%,transparent 65%)',
+                filter: 'blur(18px)', animation: 'micPulse 2.4s ease-in-out infinite',
+              }} />
+              <div style={{ fontSize: 84, filter: 'drop-shadow(0 0 28px rgba(249,115,22,0.8))', animation: 'micFloat 3s ease-in-out infinite', position: 'relative', zIndex: 1 }}>🎤</div>
+            </div>
+
+            {/* Title */}
+            <h1 style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 'clamp(28px,5vw,46px)', fontWeight: 900, color: '#fff', letterSpacing: 2, textTransform: 'uppercase', textShadow: '0 0 50px rgba(249,115,22,0.6)', margin: 0, lineHeight: 1.1 }}>
+              Llamado a<br />Escenario
+            </h1>
+
+            {/* Sub */}
+            <p style={{ fontFamily: "'Exo 2', sans-serif", fontSize: 'clamp(14px,1.8vw,16px)', fontWeight: 300, color: 'rgba(255,255,255,0.6)', maxWidth: 560, lineHeight: 1.7, margin: 0 }}>
+              Start-up <b style={{ color: '#fff' }}>{getTeamDisplayName().toUpperCase()}</b> requerida en el Centro de Comando.<br />
+              Diríjanse al frente inmediatamente.
+            </p>
+
+            {/* CTA button */}
+            <button
+              style={{
+                fontFamily: 'Orbitron, sans-serif', fontSize: 12, fontWeight: 700, letterSpacing: 3, textTransform: 'uppercase',
+                color: '#fff', background: 'linear-gradient(135deg,#d97706,#f97316)',
+                border: 'none', borderRadius: 14, padding: '16px 36px',
+                boxShadow: '0 4px 24px rgba(249,115,22,0.4)', cursor: 'default',
+              }}
+            >
+              Tomar el escenario →
+            </button>
+
+            {/* U-Bot button */}
+            <button
+              onClick={() => setShowUBotModal(true)}
+              style={{
+                fontFamily: "'Exo 2', sans-serif", fontSize: 13, fontWeight: 600,
+                color: 'rgba(255,255,255,0.5)', background: 'none', border: '1px solid rgba(255,255,255,0.15)',
+                borderRadius: 50, padding: '8px 20px', cursor: 'pointer', marginTop: -8,
+              }}
+            >
+              🤖 U-Bot
+            </button>
+          </div>
         )}
 
         {/* Estado: Presentando */}
         {isPresenting && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="bg-white rounded-xl shadow-xl p-4 sm:p-6"
-          >
-            <div className="text-center mb-4 sm:mb-6">
-              <div className="text-4xl sm:text-5xl mb-3">🎤</div>
-              <h2 className="text-xl sm:text-2xl font-bold text-green-600 mb-2">Presentación en Curso</h2>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20, paddingTop: 8 }}>
+            {/* Header */}
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+              <div style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 10, fontWeight: 600, letterSpacing: 5, textTransform: 'uppercase', color: '#10b981', background: 'rgba(16,185,129,0.07)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: 50, padding: '6px 20px' }}>
+                ● Presentación en curso
+              </div>
+              <h1 style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 'clamp(20px,3.2vw,30px)', fontWeight: 900, color: '#10b981', letterSpacing: 2, textTransform: 'uppercase', textShadow: '0 0 50px rgba(16,185,129,0.5)', margin: 0, textAlign: 'center' }}>
+                Su Pitch en Vivo
+              </h1>
             </div>
 
             {/* Timer */}
-            <div className="bg-gradient-to-r from-yellow-50 to-yellow-100 border-2 border-yellow-300 rounded-xl p-4 sm:p-6 text-center mb-4 sm:mb-6">
-              <p className="text-yellow-800 font-semibold text-base sm:text-lg mb-2 flex items-center justify-center gap-2">
-                <Clock className="w-5 h-5" /> Tiempo Restante
-              </p>
-              <p className={`text-4xl sm:text-5xl font-bold text-yellow-900 font-mono ${
-                parseInt(timerRemaining.split(':')[0]) < 1 ? 'text-red-600 animate-pulse' : ''
-              }`}>
-                {timerRemaining}
-              </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: '10px 32px', borderRadius: 16, background: 'rgba(249,115,22,0.08)', border: '1px solid rgba(249,115,22,0.4)', backdropFilter: 'blur(12px)', textAlign: 'center' }}>
+              <div style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: 3, textTransform: 'uppercase', color: '#fbbf24' }}>⏱ TIEMPO RESTANTE</div>
+              <div style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 36, fontWeight: 900, letterSpacing: 3, color: '#fff', textShadow: '0 0 40px rgba(249,115,22,0.55)' }}>{timerRemaining}</div>
             </div>
 
-            {/* Prototipo y Guion */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 mb-4 sm:mb-6">
-              {/* Prototipo (visible para todos) */}
-              <div className="bg-gray-50 rounded-lg p-3 sm:p-4 border border-gray-200 shadow-sm">
-                <h3 className="font-semibold text-base sm:text-lg text-[#093c92] mb-3 flex items-center gap-2">
-                  <ImageIcon className="w-5 h-5" /> Prototipo del Equipo
-                </h3>
-                {prototypeUrl ? (
-                  <img
-                    src={prototypeUrl}
-                    alt="Prototipo"
-                    className="w-full rounded-lg shadow-md"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).style.display = 'none';
-                    }}
-                  />
-                ) : (
-                  <p className="text-gray-400 italic text-center py-6 sm:py-8 text-xs sm:text-sm">No hay prototipo disponible</p>
-                )}
+            {/* Two-column grid */}
+            <div style={{ width: '100%', display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(280px,1fr))', gap: 16 }}>
+              {/* Prototype card */}
+              <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 22, backdropFilter: 'blur(16px)', padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 11, fontWeight: 700, letterSpacing: 2.5, textTransform: 'uppercase', color: 'rgba(255,255,255,0.65)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span>🖼</span> Prototipo del Equipo
+                </div>
+                <div style={{ flex: 1, minHeight: 220, background: '#0a0e2a', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 14, padding: 20, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12 }}>
+                  {prototypeUrl ? (
+                    <img src={prototypeUrl} alt="Prototipo" style={{ maxWidth: '100%', maxHeight: 280, borderRadius: 10 }} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                  ) : (
+                    <div style={{ fontSize: 64, filter: 'drop-shadow(0 0 24px rgba(192,38,211,0.55))' }}>🚀</div>
+                  )}
+                </div>
               </div>
 
-              {/* Guion (solo para el equipo que presenta) */}
+              {/* Script card */}
               {presentationStatus.current_team_pitch && (
-                <div className="bg-gray-50 rounded-lg p-3 sm:p-4 border border-gray-200 shadow-sm">
-                  <h3 className="font-semibold text-base sm:text-lg text-[#093c92] mb-3 flex items-center gap-2">
-                    <FileText className="w-5 h-5" /> Tu Guion de Pitch
-                  </h3>
-                  <div className="space-y-3 sm:space-y-4 text-xs sm:text-sm max-h-[400px] overflow-y-auto">
-                    {presentationStatus.current_team_pitch.intro_problem && (
-                      <div>
-                        <h4 className="font-semibold text-[#093c92] mb-1.5 flex items-center gap-1.5">
-                          <Target className="w-4 h-4" /> Problema
-                        </h4>
-                        <p className="text-gray-700 whitespace-pre-wrap bg-white p-2 rounded border border-gray-200">{presentationStatus.current_team_pitch.intro_problem}</p>
+                <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 22, backdropFilter: 'blur(16px)', padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <div style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 11, fontWeight: 700, letterSpacing: 2.5, textTransform: 'uppercase', color: 'rgba(255,255,255,0.65)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span>📋</span> Tu Guión de Pitch
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: 360, overflowY: 'auto', paddingRight: 4 }}>
+                    {[
+                      { key: 'dolor', color: '#ef4444', tag: 'EL DOLOR', text: presentationStatus.current_team_pitch.intro_problem },
+                      { key: 'rescate', color: '#3b82f6', tag: 'EL RESCATE', text: presentationStatus.current_team_pitch.solution },
+                      { key: 'diferencia', color: '#c026d3', tag: 'DIFERENCIA', text: presentationStatus.current_team_pitch.value },
+                      { key: 'futuro', color: '#10b981', tag: 'EL FUTURO', text: presentationStatus.current_team_pitch.impact },
+                      { key: 'cierre', color: '#f59e0b', tag: 'GOLPE FINAL', text: presentationStatus.current_team_pitch.closing },
+                    ].filter(s => s.text).map(s => (
+                      <div key={s.key} style={{ padding: '10px 14px', borderRadius: 12, background: 'rgba(0,0,0,0.25)', borderLeft: `3px solid ${s.color}` }}>
+                        <div style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: 2.5, textTransform: 'uppercase', color: s.color, marginBottom: 4 }}>{s.tag}</div>
+                        <div style={{ fontFamily: "'Exo 2', sans-serif", fontSize: 13, fontWeight: 300, color: 'rgba(255,255,255,0.85)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{s.text}</div>
                       </div>
-                    )}
-                    {presentationStatus.current_team_pitch.solution && (
-                      <div>
-                        <h4 className="font-semibold text-[#093c92] mb-1.5 flex items-center gap-1.5">
-                          <Lightbulb className="w-4 h-4" /> Solución
-                        </h4>
-                        <p className="text-gray-700 whitespace-pre-wrap bg-white p-2 rounded border border-gray-200">{presentationStatus.current_team_pitch.solution}</p>
-                      </div>
-                    )}
-                    {presentationStatus.current_team_pitch.value && (
-                      <div>
-                        <h4 className="font-semibold text-[#093c92] mb-1.5 flex items-center gap-1.5">
-                          <Coins className="w-4 h-4" /> Valor
-                        </h4>
-                        <p className="text-gray-700 whitespace-pre-wrap bg-white p-2 rounded border border-gray-200">{presentationStatus.current_team_pitch.value}</p>
-                      </div>
-                    )}
-                    {presentationStatus.current_team_pitch.impact && (
-                      <div>
-                        <h4 className="font-semibold text-[#093c92] mb-1.5 flex items-center gap-1.5">
-                          <Target className="w-4 h-4" /> Impacto
-                        </h4>
-                        <p className="text-gray-700 whitespace-pre-wrap bg-white p-2 rounded border border-gray-200">{presentationStatus.current_team_pitch.impact}</p>
-                      </div>
-                    )}
-                    {presentationStatus.current_team_pitch.closing && (
-                      <div>
-                        <h4 className="font-semibold text-[#093c92] mb-1.5 flex items-center gap-1.5">
-                          <CheckCircle2 className="w-4 h-4" /> Cierre
-                        </h4>
-                        <p className="text-gray-700 whitespace-pre-wrap bg-white p-2 rounded border border-gray-200">{presentationStatus.current_team_pitch.closing}</p>
-                      </div>
-                    )}
+                    ))}
                   </div>
                 </div>
               )}
             </div>
 
-            <p className="text-center text-gray-600 text-xs sm:text-sm">
+            <p style={{ fontFamily: "'Exo 2', sans-serif", fontSize: 13, color: 'rgba(255,255,255,0.4)', textAlign: 'center' }}>
               El equipo tiene 1:30 minutos para presentar su pitch
             </p>
-          </motion.div>
+          </div>
         )}
 
-        {/* Estado: Esperando Turno */}
+        {/* Estado: Esperando Turno (otro equipo presentando) */}
         {isWaiting && presentationState === 'presenting' && (() => {
-          const myPosition = getMyPosition();
-          const currentPosition = getCurrentPresentingPosition();
-          
+          const presentingTeam = presentationStatus?.teams.find(t => t.id === presentationStatus.current_presentation_team_id);
           return (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="bg-white rounded-xl shadow-xl p-4 sm:p-6 text-center"
-            >
-              <div className="text-4xl sm:text-5xl mb-3 sm:mb-4">👀</div>
-              <h2 className="text-xl sm:text-2xl font-bold text-[#093c92] mb-3 sm:mb-4">
-                Observando Presentación
-              </h2>
-              <p className="text-gray-600 text-sm sm:text-base mb-2">
-                La Start-up <span className="font-bold text-[#093c92]">{getEvaluatedTeamName().toUpperCase()}</span> está presentando su pitch
-              </p>
-              
-              {myPosition && (
-                <div className="bg-gradient-to-r from-blue-50 to-blue-100 border-2 border-blue-300 rounded-xl p-3 sm:p-4 mb-4 sm:mb-6 mt-3 sm:mt-4">
-                  <p className="text-blue-800 font-semibold text-base sm:text-lg">
-                    📋 Tu Start-up presenta {myPosition === 1 ? 'primero' : getPositionText(myPosition)}
-                  </p>
-                  {currentPosition && myPosition > currentPosition && (
-                    <p className="text-blue-600 text-xs sm:text-sm mt-2">
-                      {myPosition - currentPosition === 1 
-                        ? 'Tu turno es el siguiente'
-                        : `Faltan ${myPosition - currentPosition} presentaciones antes de tu turno`
-                      }
-                    </p>
-                  )}
-                </div>
-              )}
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20, textAlign: 'center', minHeight: '70vh', justifyContent: 'center' }}>
+              <div style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 10, fontWeight: 600, letterSpacing: 5, textTransform: 'uppercase', color: 'rgba(96,165,250,0.95)', background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.3)', borderRadius: 50, padding: '6px 20px' }}>
+                ⏳ En espera
+              </div>
 
-              {/* Timer visible para todos */}
+              {/* Hourglass */}
+              <div style={{ position: 'relative', width: 120, height: 120, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: 'radial-gradient(circle,rgba(59,130,246,0.4) 0%,transparent 65%)', filter: 'blur(16px)' }} />
+                <div style={{ fontSize: 68, filter: 'drop-shadow(0 0 24px rgba(59,130,246,0.8))', animation: 'hgFloat 3s ease-in-out infinite', position: 'relative', zIndex: 1 }}>⏳</div>
+              </div>
+
+              <h1 style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 'clamp(24px,4.4vw,40px)', fontWeight: 900, color: '#fff', letterSpacing: 2, textTransform: 'uppercase', textShadow: '0 0 50px rgba(59,130,246,0.5)', margin: 0, lineHeight: 1.1 }}>
+                Esperando<br />tu Turno
+              </h1>
+
+              {/* Timer */}
               {timerRemaining !== '01:30' && (
-                <div className="bg-yellow-50 border-2 border-yellow-300 rounded-xl p-3 sm:p-4 mb-4 sm:mb-6">
-                  <p className="text-yellow-800 font-semibold text-sm sm:text-base mb-2 flex items-center justify-center gap-2">
-                    <Clock className="w-4 h-4 sm:w-5 sm:h-5" /> Tiempo Restante
-                  </p>
-                  <p className="text-3xl sm:text-4xl font-bold text-yellow-900 font-mono">{timerRemaining}</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: '10px 28px', borderRadius: 16, background: 'rgba(249,115,22,0.08)', border: '1px solid rgba(249,115,22,0.4)', backdropFilter: 'blur(12px)' }}>
+                  <div style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: 3, textTransform: 'uppercase', color: '#fbbf24' }}>⏱ TIEMPO RESTANTE</div>
+                  <div style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 28, fontWeight: 900, color: '#fff', letterSpacing: 3, textShadow: '0 0 40px rgba(249,115,22,0.55)' }}>{timerRemaining}</div>
                 </div>
               )}
 
-              {/* Prototipo del equipo que presenta */}
-              {prototypeUrl && (
-                <div className="bg-gray-50 rounded-lg p-3 sm:p-4 max-w-md mx-auto border border-gray-200 shadow-sm">
-                  <h3 className="font-semibold text-base sm:text-lg text-[#093c92] mb-3 flex items-center gap-2 justify-center">
-                    <ImageIcon className="w-5 h-5" /> Prototipo del Equipo
-                  </h3>
-                  <img
-                    src={prototypeUrl}
-                    alt="Prototipo"
-                    className="w-full rounded-lg shadow-md"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).style.display = 'none';
-                    }}
-                  />
+              {/* Presenter card */}
+              {presentingTeam && (
+                <div style={{
+                  background: 'rgba(59,130,246,0.06)', border: '1px solid rgba(59,130,246,0.3)',
+                  borderRadius: 22, backdropFilter: 'blur(16px)', padding: '20px 24px',
+                  maxWidth: 520, width: '100%', display: 'flex', flexDirection: 'column', gap: 12,
+                  boxShadow: '0 20px 60px rgba(0,0,0,0.4), 0 0 60px rgba(59,130,246,0.12)',
+                }}>
+                  <div style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: 3, textTransform: 'uppercase', color: 'rgba(96,165,250,0.95)', textAlign: 'center' }}>PRESENTANDO AHORA</div>
+                  <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
+                    {prototypeUrl ? (
+                      <img src={prototypeUrl} alt="Prototipo" style={{ width: 72, height: 72, borderRadius: 16, objectFit: 'cover', border: '1px solid rgba(255,255,255,0.1)', flexShrink: 0 }} />
+                    ) : (
+                      <div style={{ width: 72, height: 72, borderRadius: 16, background: '#0a0e2a', border: '1px solid rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32, flexShrink: 0 }}>🚀</div>
+                    )}
+                    <div style={{ flex: 1, textAlign: 'left' }}>
+                      <div style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 16, fontWeight: 900, color: '#fff', letterSpacing: 1, marginBottom: 4 }}>
+                        {getTeamName(presentingTeam).toUpperCase()}
+                      </div>
+                      <div style={{ display: 'inline-flex', gap: 6, alignItems: 'center', fontFamily: "'Exo 2', sans-serif", fontSize: 12, color: 'rgba(255,255,255,0.5)' }}>
+                        🟢 Equipo {presentingTeam.color}
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'center' }}>
+                    <div style={{ display: 'inline-flex', gap: 8, alignItems: 'center', padding: '7px 14px', background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: 50, fontFamily: 'Orbitron, sans-serif', fontSize: 10, fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', color: '#10b981' }}>
+                      <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#10b981', boxShadow: '0 0 12px #10b981', animation: 'livePulse 1.2s ease-in-out infinite' }} />
+                      En vivo en el escenario
+                    </div>
+                  </div>
                 </div>
               )}
-            </motion.div>
+            </div>
           );
         })()}
 
-        {/* Estado: Evaluación */}
+        {/* Estado: Análisis de Competencia */}
         {isEvaluating && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="bg-white rounded-xl shadow-xl p-4 sm:p-6"
-          >
-            <div className="text-center mb-4 sm:mb-6">
-              <div className="text-4xl sm:text-5xl mb-3">⭐</div>
-              <h2 className="text-xl sm:text-2xl font-bold text-yellow-600 mb-2">Análisis de Competencia</h2>
-              <p className="text-gray-600 text-sm sm:text-base">
-                ¿Invertirías en la Start-up {getEvaluatedTeamName().toUpperCase()}? Valora su potencial.
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20, paddingTop: 16 }}>
+            {/* Header */}
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 10, fontWeight: 600, letterSpacing: 5, textTransform: 'uppercase', color: '#fbbf24', background: 'rgba(251,191,36,0.07)', border: '1px solid rgba(251,191,36,0.3)', borderRadius: 50, padding: '6px 20px', marginBottom: 12, display: 'inline-block' }}>
+                ⭐ Análisis de competencia
+              </div>
+              <h1 style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 'clamp(22px,3.6vw,34px)', fontWeight: 900, color: '#fff', letterSpacing: 2, textTransform: 'uppercase', textShadow: '0 0 50px rgba(251,191,36,0.5)', margin: 0, lineHeight: 1.1 }}>
+                Análisis de<br />Competencia
+              </h1>
+              <p style={{ fontFamily: "'Exo 2', sans-serif", fontSize: 15, fontWeight: 300, color: 'rgba(255,255,255,0.6)', marginTop: 10, lineHeight: 1.7 }}>
+                ¿Invertirías en la Start-up <b style={{ color: '#fff' }}>{getEvaluatedTeamName().toUpperCase()}</b>? Valora su potencial.
               </p>
             </div>
 
             {isCheckingEvaluation ? (
-              <div className="bg-blue-50 border-2 border-blue-300 rounded-xl p-4 sm:p-6 text-center">
-                <Loader2 className="w-10 h-10 sm:w-12 sm:h-12 text-blue-600 mx-auto mb-3 animate-spin" />
-                <p className="text-blue-800 font-semibold text-base sm:text-lg">
-                  Verificando evaluación...
-                </p>
-                <p className="text-blue-700 text-xs sm:text-sm mt-2">
-                  Por favor espera un momento
-                </p>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, padding: '24px', background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.3)', borderRadius: 22, maxWidth: 680, width: '100%' }}>
+                <Loader2 style={{ width: 40, height: 40, color: '#3b82f6' }} className="animate-spin" />
+                <p style={{ fontFamily: "'Exo 2', sans-serif", color: 'rgba(255,255,255,0.7)', margin: 0 }}>Verificando evaluación…</p>
               </div>
             ) : evaluationSubmitted ? (
-              <div className="bg-gradient-to-br from-green-50 to-green-100 border-2 border-green-400 rounded-xl p-4 sm:p-6 text-center">
-                <CheckCircle2 className="w-10 h-10 sm:w-12 sm:h-12 text-green-600 mx-auto mb-3" />
-                <p className="text-green-800 font-semibold text-base sm:text-lg">
-                  ✅ Evaluación enviada exitosamente
-                </p>
-                <p className="text-green-700 text-xs sm:text-sm mt-2">
-                  Espera a que el profesor avance al siguiente turno
-                </p>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, padding: '24px', background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: 22, maxWidth: 680, width: '100%', textAlign: 'center' }}>
+                <div style={{ fontSize: 48 }}>✅</div>
+                <p style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 14, fontWeight: 700, color: '#10b981', margin: 0 }}>Evaluación enviada exitosamente</p>
+                <p style={{ fontFamily: "'Exo 2', sans-serif", fontSize: 13, color: 'rgba(255,255,255,0.5)', margin: 0 }}>Espera a que el profesor avance al siguiente turno</p>
               </div>
             ) : (
-              <form onSubmit={handleSubmitEvaluation} className="space-y-3 sm:space-y-4">
-                <div>
-                  <label className="block text-xs sm:text-sm font-semibold text-[#093c92] mb-2">
-                    Relevancia del Dolor (El Problema) (1-10)
-                  </label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="10"
-                    value={evaluationScores.clarity}
-                    onChange={(e) => setEvaluationScores({ ...evaluationScores, clarity: parseInt(e.target.value) })}
-                    required
-                    className="w-full px-3 sm:px-4 py-2 sm:py-2.5 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#093c92] focus:border-transparent text-sm sm:text-base"
-                  />
-                </div>
+              <form onSubmit={handleSubmitEvaluation} style={{ width: '100%', maxWidth: 680, display: 'flex', flexDirection: 'column', gap: 0 }}>
+                <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(251,191,36,0.25)', borderRadius: 22, backdropFilter: 'blur(16px)', padding: '22px 24px', display: 'flex', flexDirection: 'column', gap: 20, boxShadow: '0 20px 60px rgba(0,0,0,0.4), 0 0 60px rgba(251,191,36,0.08)' }}>
+                  {/* Compact presenter row */}
+                  <div style={{ display: 'flex', gap: 12, alignItems: 'center', paddingBottom: 16, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                    <div style={{ width: 54, height: 54, borderRadius: 14, background: '#0a0e2a', border: '1px solid rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, flexShrink: 0 }}>🚀</div>
+                    <div>
+                      <div style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 15, fontWeight: 900, color: '#fff', letterSpacing: 0.5 }}>{getEvaluatedTeamName().toUpperCase()}</div>
+                      <div style={{ fontFamily: "'Exo 2', sans-serif", fontSize: 12, color: 'rgba(255,255,255,0.5)', marginTop: 2 }}>Start-up en evaluación</div>
+                    </div>
+                  </div>
 
-                <div>
-                  <label className="block text-xs sm:text-sm font-semibold text-[#093c92] mb-2">
-                    Potencial de la Solución (El MVP) (1-10)
-                  </label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="10"
-                    value={evaluationScores.solution}
-                    onChange={(e) => setEvaluationScores({ ...evaluationScores, solution: parseInt(e.target.value) })}
-                    required
-                    className="w-full px-3 sm:px-4 py-2 sm:py-2.5 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#093c92] focus:border-transparent text-sm sm:text-base"
-                  />
-                </div>
+                  {/* Rating rows */}
+                  {[
+                    { label: 'Relevancia del Dolor', sub: 'El Problema', key: 'clarity' as const },
+                    { label: 'Potencial de la Solución', sub: 'El MVP', key: 'solution' as const },
+                    { label: 'Poder de Convicción', sub: 'El Pitch', key: 'presentation' as const },
+                  ].map(({ label, sub, key }) => (
+                    <div key={key} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      <div style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 11, fontWeight: 700, letterSpacing: 1.5, textTransform: 'uppercase', color: '#fff' }}>
+                        {label} <span style={{ fontFamily: "'Exo 2', sans-serif", fontSize: 10, fontWeight: 400, color: 'rgba(255,255,255,0.45)', letterSpacing: 0.5, marginLeft: 4 }}>{sub}</span>
+                      </div>
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                        {[1,2,3,4,5,6,7,8,9,10].map(n => {
+                          const selected = evaluationScores[key] === n;
+                          const below = evaluationScores[key] > n;
+                          return (
+                            <button
+                              key={n}
+                              type="button"
+                              onClick={() => setEvaluationScores({ ...evaluationScores, [key]: n })}
+                              style={{
+                                flex: 1, minWidth: 32, height: 42, borderRadius: 10,
+                                fontFamily: 'Orbitron, sans-serif', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                                border: selected ? '1.5px solid #fbbf24' : below ? '1.5px solid rgba(251,191,36,0.55)' : '1.5px solid rgba(255,255,255,0.1)',
+                                background: selected ? 'linear-gradient(135deg,#d97706,#fbbf24)' : below ? 'rgba(251,191,36,0.18)' : 'rgba(255,255,255,0.05)',
+                                color: selected ? '#0a0e2a' : below ? '#fbbf24' : 'rgba(255,255,255,0.6)',
+                                boxShadow: selected ? '0 0 18px rgba(251,191,36,0.45)' : 'none',
+                                transition: 'all 0.15s',
+                              }}
+                            >
+                              {n}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
 
-                <div>
-                  <label className="block text-xs sm:text-sm font-semibold text-[#093c92] mb-2">
-                    Poder de Convicción (El Pitch) (1-10)
-                  </label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="10"
-                    value={evaluationScores.presentation}
-                    onChange={(e) => setEvaluationScores({ ...evaluationScores, presentation: parseInt(e.target.value) })}
-                    required
-                    className="w-full px-3 sm:px-4 py-2 sm:py-2.5 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#093c92] focus:border-transparent text-sm sm:text-base"
-                  />
-                </div>
+                  {/* Strategy textarea */}
+                  <div>
+                    <div style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 11, fontWeight: 700, letterSpacing: 1.5, textTransform: 'uppercase', color: '#fff', marginBottom: 8 }}>
+                      Consejo Estratégico <span style={{ fontFamily: "'Exo 2', sans-serif", fontSize: 10, fontWeight: 400, color: 'rgba(255,255,255,0.45)', letterSpacing: 0.5 }}>Opcional</span>
+                    </div>
+                    <textarea
+                      value={evaluationScores.feedback}
+                      onChange={(e) => setEvaluationScores({ ...evaluationScores, feedback: e.target.value })}
+                      rows={3}
+                      maxLength={400}
+                      placeholder="Escriban su consejo estratégico aquí…"
+                      style={{
+                        width: '100%', boxSizing: 'border-box', minHeight: 80,
+                        background: 'rgba(0,0,0,0.25)', border: '1.5px solid rgba(255,255,255,0.12)', borderRadius: 14,
+                        color: '#fff', fontFamily: "'Exo 2', sans-serif", fontSize: 14, fontWeight: 400,
+                        padding: '12px 14px', lineHeight: 1.6, resize: 'vertical', outline: 'none',
+                      }}
+                    />
+                  </div>
 
-                <div>
-                  <label className="block text-xs sm:text-sm font-semibold text-[#093c92] mb-2">
-                    Consejo Estratégico (Opcional)
-                  </label>
-                  <textarea
-                    value={evaluationScores.feedback}
-                    onChange={(e) => setEvaluationScores({ ...evaluationScores, feedback: e.target.value })}
-                    rows={4}
-                    placeholder="Escribe tu consejo estratégico aquí..."
-                    className="w-full px-3 sm:px-4 py-2 sm:py-2.5 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#093c92] focus:border-transparent text-sm sm:text-base resize-y"
-                  />
+                  {/* Submit */}
+                  <button
+                    type="submit"
+                    disabled={isSubmittingEvaluation}
+                    style={{
+                      fontFamily: 'Orbitron, sans-serif', fontSize: 11, fontWeight: 700, letterSpacing: 3, textTransform: 'uppercase',
+                      color: isSubmittingEvaluation ? 'rgba(255,255,255,0.5)' : '#fff',
+                      background: isSubmittingEvaluation ? 'rgba(255,255,255,0.08)' : 'linear-gradient(135deg,#093c92,#c026d3)',
+                      border: 'none', borderRadius: 12, padding: '14px 24px',
+                      cursor: isSubmittingEvaluation ? 'not-allowed' : 'pointer',
+                      boxShadow: isSubmittingEvaluation ? 'none' : '0 4px 22px rgba(192,38,211,0.3)',
+                      width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                    }}
+                  >
+                    {isSubmittingEvaluation ? (
+                      <><Loader2 style={{ width: 16, height: 16 }} className="animate-spin" /> Enviando…</>
+                    ) : (
+                      '[ Registrar Valoración ]'
+                    )}
+                  </button>
                 </div>
-
-                <Button
-                  type="submit"
-                  disabled={isSubmittingEvaluation}
-                  className="w-full bg-gradient-to-r from-[#093c92] to-[#f757ac] hover:from-[#072e73] hover:to-[#e6498a] text-white text-sm sm:text-base py-3 sm:py-4 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
-                  size="lg"
-                >
-                  {isSubmittingEvaluation ? (
-                    <>
-                      <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 mr-2 animate-spin" />
-                      Enviando...
-                    </>
-                  ) : (
-                    <>
-                      <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
-                      [ REGISTRAR VALORACIÓN ]
-                    </>
-                  )}
-                </Button>
               </form>
             )}
-          </motion.div>
+          </div>
         )}
 
         {/* Estado: Equipo que presentó esperando */}
         {presentationState === 'evaluating' && isMyTurn && (() => {
-          // Obtener otros equipos
           const otherTeams = presentationStatus?.teams.filter(t => t.id !== team.id) || [];
-          // CRÍTICO: El serializer devuelve evaluator_team (ID), no evaluator_team_id
-          const evaluatedTeamIds = new Set(receivedEvaluations.map((e: any) => e.evaluator_team || e.evaluator_team_id));
-          
-          // Calcular estadísticas agregadas
+
           const totalClarity = receivedEvaluations.reduce((sum: number, e: any) => sum + (e.criteria_scores?.clarity || 0), 0);
           const totalSolution = receivedEvaluations.reduce((sum: number, e: any) => sum + (e.criteria_scores?.solution || 0), 0);
           const totalPresentation = receivedEvaluations.reduce((sum: number, e: any) => sum + (e.criteria_scores?.presentation || 0), 0);
@@ -1209,264 +1012,181 @@ export function TabletPresentacionPitch() {
           const totalTokens = receivedEvaluations.reduce((sum: number, e: any) => sum + (e.tokens_awarded || 0), 0);
           const count = receivedEvaluations.length;
 
-          return (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-              className="bg-white rounded-xl shadow-xl p-4 sm:p-6"
-          >
-              <div className="text-center mb-4 sm:mb-6">
-                <div className="text-4xl sm:text-5xl mb-3">⏳</div>
-                <h2 className="text-xl sm:text-2xl font-bold text-[#093c92] mb-2">
-              Esperando Evaluaciones
-            </h2>
-                <p className="text-gray-600 text-sm sm:text-base">
-                  La competencia está decidiendo el valor de su propuesta.
+          const allEvaluationsReceived = evaluationProgress.completed >= evaluationProgress.total && evaluationProgress.total > 0;
+
+          if (allEvaluationsReceived) {
+            return (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20, textAlign: 'center', paddingTop: 24 }}>
+                <div style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 10, fontWeight: 600, letterSpacing: 5, textTransform: 'uppercase', color: 'rgba(255,255,255,0.35)', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)', borderRadius: 50, padding: '6px 20px' }}>
+                  Misión Completada · Fase 4
+                </div>
+
+                <div style={{ fontSize: 'clamp(48px,8vw,68px)', lineHeight: 1 }}>🎤</div>
+
+                <h1 style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 'clamp(28px,5.5vw,50px)', fontWeight: 900, color: '#fff', letterSpacing: 2, textTransform: 'uppercase', textShadow: '0 0 50px rgba(192,38,211,0.55)', margin: 0, lineHeight: 1.1 }}>
+                  ¡Pitch<br />Entregado!
+                </h1>
+
+                <p style={{ fontFamily: "'Exo 2', sans-serif", fontSize: 'clamp(13px,1.7vw,15px)', fontWeight: 300, color: 'rgba(255,255,255,0.5)', lineHeight: 1.8, maxWidth: 480, margin: 0 }}>
+                  Pasaron de la idea al prototipo, y del prototipo a la historia.<br />Eso es lo que hace que una solución viaje más lejos que su creador.
+                </p>
+
+                {/* Score block */}
+                <div style={{ background: 'rgba(192,38,211,0.08)', border: '1px solid rgba(192,38,211,0.2)', borderRadius: 18, padding: '18px 40px', textAlign: 'center' }}>
+                  <div style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 'clamp(40px,8vw,64px)', fontWeight: 900, color: '#c026d3', textShadow: '0 0 30px rgba(192,38,211,0.55)', lineHeight: 1 }}>{totalScore}</div>
+                  <div style={{ fontFamily: "'Exo 2', sans-serif", fontSize: 11, fontWeight: 600, letterSpacing: 3, textTransform: 'uppercase', color: 'rgba(255,255,255,0.28)', marginTop: 6 }}>puntos obtenidos</div>
+                </div>
+
+                {count > 0 && (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10, maxWidth: 480, width: '100%' }}>
+                    {[
+                      { l: 'Dolor', v: (totalClarity / count).toFixed(1), c: '#3b82f6' },
+                      { l: 'Solución', v: (totalSolution / count).toFixed(1), c: '#10b981' },
+                      { l: 'Convicción', v: (totalPresentation / count).toFixed(1), c: '#c026d3' },
+                    ].map(s => (
+                      <div key={s.l} style={{ background: `${s.c}18`, border: `1.5px solid ${s.c}40`, borderRadius: 16, padding: '10px', textAlign: 'center' }}>
+                        <div style={{ fontFamily: "'Exo 2', sans-serif", fontSize: 11, color: s.c, fontWeight: 600, marginBottom: 4 }}>{s.l}</div>
+                        <div style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 16, fontWeight: 900, color: '#fff' }}>{s.v}/10</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <p style={{ fontFamily: "'Exo 2', sans-serif", fontSize: 12, color: 'rgba(255,255,255,0.3)' }}>
+                  El profesor avanzará cuando todas las start-ups hayan presentado.
                 </p>
               </div>
+            );
+          }
 
-              {/* Estado de la Ronda de Inversión */}
-              <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 border-2 border-yellow-300 rounded-xl p-3 sm:p-4 mb-4 sm:mb-6">
-                <h3 className="font-semibold text-base sm:text-lg text-[#093c92] mb-3 flex items-center gap-2">
-                  <Users className="w-5 h-5" /> Estado de la Ronda de Inversión
-                </h3>
-                <div className="w-full bg-gray-200 rounded-full h-3 sm:h-4 mb-2">
-                  <div
-                    className="bg-green-500 h-3 sm:h-4 rounded-full transition-all duration-300"
-                    style={{ width: `${evaluationProgress.total > 0 ? (evaluationProgress.completed / evaluationProgress.total) * 100 : 0}%` }}
-                  />
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20, paddingTop: 8, width: '100%' }}>
+              {/* Header */}
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: 48, marginBottom: 8 }}>⏳</div>
+                <h2 style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 'clamp(20px,3vw,28px)', fontWeight: 900, color: '#fff', letterSpacing: 2, textTransform: 'uppercase', margin: 0 }}>Esperando Evaluaciones</h2>
+                <p style={{ fontFamily: "'Exo 2', sans-serif", fontSize: 14, color: 'rgba(255,255,255,0.5)', marginTop: 8 }}>La competencia está decidiendo el valor de su propuesta.</p>
+              </div>
+
+              {/* Progress bar */}
+              <div style={{ background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.3)', borderRadius: 22, padding: '18px 22px', maxWidth: 680, width: '100%' }}>
+                <div style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 10, fontWeight: 700, letterSpacing: 2.5, textTransform: 'uppercase', color: 'rgba(255,255,255,0.65)', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+                  👥 Estado de la Ronda de Inversión
                 </div>
-                <p className="text-xs sm:text-sm text-gray-700 font-semibold">
+                <div style={{ width: '100%', background: 'rgba(255,255,255,0.1)', borderRadius: 999, height: 12, marginBottom: 8, overflow: 'hidden' }}>
+                  <div style={{ height: '100%', borderRadius: 999, background: '#10b981', boxShadow: '0 0 10px rgba(16,185,129,0.5)', transition: 'width 0.4s', width: `${evaluationProgress.total > 0 ? (evaluationProgress.completed / evaluationProgress.total) * 100 : 0}%` }} />
+                </div>
+                <p style={{ fontFamily: "'Exo 2', sans-serif", fontSize: 13, color: 'rgba(255,255,255,0.65)', margin: 0 }}>
                   {evaluationProgress.completed} de {evaluationProgress.total} Start-ups han emitido su voto
                 </p>
               </div>
 
-              {/* Estadísticas Totales por Criterio */}
+              {/* Score stats */}
               {count > 0 && (
-                <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-4 sm:mb-6">
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: 0.1 }}
-                    className="bg-gradient-to-br from-blue-50 to-blue-100 border-2 border-blue-300 rounded-xl p-3 sm:p-4 text-center shadow-lg"
-                  >
-                    <Target className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600 mx-auto mb-2" />
-                    <div className="text-xl sm:text-2xl font-bold text-blue-700 mb-1">
-                      {totalClarity}
+                <>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12, maxWidth: 680, width: '100%' }}>
+                    {[
+                      { label: 'Total Claridad', value: totalClarity, avg: totalClarity / count, color: '#3b82f6' },
+                      { label: 'Total Solución', value: totalSolution, avg: totalSolution / count, color: '#10b981' },
+                      { label: 'Total Presentación', value: totalPresentation, avg: totalPresentation / count, color: '#c026d3' },
+                    ].map(stat => (
+                      <div key={stat.label} style={{ background: 'rgba(255,255,255,0.04)', border: `1.5px solid ${stat.color}40`, borderRadius: 18, padding: '14px', textAlign: 'center' }}>
+                        <div style={{ fontSize: 22, fontWeight: 900, color: stat.color, fontFamily: 'Orbitron, sans-serif', marginBottom: 4 }}>{stat.value}</div>
+                        <div style={{ fontFamily: "'Exo 2', sans-serif", fontSize: 11, color: 'rgba(255,255,255,0.6)', marginBottom: 4 }}>{stat.label}</div>
+                        <div style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 10, color: stat.color }}>Prom: {stat.avg.toFixed(1)}/10</div>
                       </div>
-                    <div className="text-xs sm:text-sm text-blue-800 font-semibold">Total Claridad</div>
-                    <div className="text-xs text-blue-600 mt-1">
-                      Promedio: {(totalClarity / count).toFixed(1)}/10
-                    </div>
-                  </motion.div>
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: 0.2 }}
-                    className="bg-gradient-to-br from-green-50 to-green-100 border-2 border-green-300 rounded-xl p-3 sm:p-4 text-center shadow-lg"
-                  >
-                    <Lightbulb className="w-5 h-5 sm:w-6 sm:h-6 text-green-600 mx-auto mb-2" />
-                    <div className="text-xl sm:text-2xl font-bold text-green-700 mb-1">
-                      {totalSolution}
-                    </div>
-                    <div className="text-xs sm:text-sm text-green-800 font-semibold">Total Solución</div>
-                    <div className="text-xs text-green-600 mt-1">
-                      Promedio: {(totalSolution / count).toFixed(1)}/10
-                    </div>
-                  </motion.div>
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: 0.3 }}
-                    className="bg-gradient-to-br from-purple-50 to-purple-100 border-2 border-purple-300 rounded-xl p-3 sm:p-4 text-center shadow-lg"
-                  >
-                    <Star className="w-5 h-5 sm:w-6 sm:h-6 text-purple-600 mx-auto mb-2" />
-                    <div className="text-xl sm:text-2xl font-bold text-purple-700 mb-1">
-                      {totalPresentation}
-                    </div>
-                    <div className="text-xs sm:text-sm text-purple-800 font-semibold">Total Presentación</div>
-                    <div className="text-xs text-purple-600 mt-1">
-                      Promedio: {(totalPresentation / count).toFixed(1)}/10
-                    </div>
-                  </motion.div>
-                </div>
+                    ))}
+                  </div>
+
+                  <div style={{ background: 'linear-gradient(135deg,rgba(9,60,146,0.4),rgba(192,38,211,0.3))', border: '1px solid rgba(192,38,211,0.3)', borderRadius: 18, padding: '16px 24px', maxWidth: 680, width: '100%', display: 'flex', justifyContent: 'center', gap: 40, flexWrap: 'wrap', textAlign: 'center' }}>
+                    <div><div style={{ fontFamily: "'Exo 2', sans-serif", fontSize: 12, color: 'rgba(255,255,255,0.6)', marginBottom: 4 }}>Puntuación Total</div><div style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 28, fontWeight: 900, color: '#fff' }}>{totalScore}</div></div>
+                    <div><div style={{ fontFamily: "'Exo 2', sans-serif", fontSize: 12, color: 'rgba(255,255,255,0.6)', marginBottom: 4 }}>Tokens Recibidos</div><div style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 28, fontWeight: 900, color: '#fff', display: 'flex', alignItems: 'center', gap: 6 }}><Coins style={{ width: 22, height: 22 }} />{totalTokens}</div></div>
+                    <div><div style={{ fontFamily: "'Exo 2', sans-serif", fontSize: 12, color: 'rgba(255,255,255,0.6)', marginBottom: 4 }}>Promedio</div><div style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 28, fontWeight: 900, color: '#fff' }}>{(totalScore / count).toFixed(1)}/30</div></div>
+                  </div>
+                </>
               )}
 
-              {/* Resumen Total */}
-              {count > 0 && (
-                <div className="bg-gradient-to-r from-[#093c92] to-[#f757ac] rounded-xl p-3 sm:p-4 mb-4 sm:mb-6 text-white text-center shadow-lg">
-                  <div className="flex flex-wrap justify-center gap-4 sm:gap-6">
-                        <div>
-                      <p className="text-xs sm:text-sm opacity-90">Puntuación Total</p>
-                      <p className="text-2xl sm:text-3xl font-bold">{totalScore}</p>
-                        </div>
-                        <div>
-                      <p className="text-xs sm:text-sm opacity-90">Tokens Recibidos</p>
-                      <p className="text-2xl sm:text-3xl font-bold flex items-center justify-center gap-1">
-                        <Coins className="w-5 h-5 sm:w-6 sm:h-6" /> {totalTokens}
-                      </p>
-                        </div>
-                        <div>
-                      <p className="text-xs sm:text-sm opacity-90">Promedio General</p>
-                      <p className="text-2xl sm:text-3xl font-bold">{(totalScore / count).toFixed(1)}/30</p>
-                        </div>
-                      </div>
-                        </div>
-                      )}
-
-              {/* Panel de Inversionistas */}
-              <div className="space-y-2 sm:space-y-3">
-                <h3 className="font-semibold text-base sm:text-lg text-[#093c92] mb-3 flex items-center gap-2">
-                  <Users className="w-5 h-5" /> Panel de Inversionistas
-                </h3>
-                {otherTeams.map((otherTeam) => {
-                  // Buscar evaluación por evaluator_team o evaluator_team_id
-                  const evaluation = receivedEvaluations.find((e: any) => 
-                    (e.evaluator_team === otherTeam.id) || (e.evaluator_team_id === otherTeam.id)
-                  );
-                  const hasEvaluated = !!evaluation;
-
+              {/* Panel de inversionistas */}
+              <div style={{ maxWidth: 680, width: '100%', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 10, fontWeight: 700, letterSpacing: 2.5, textTransform: 'uppercase', color: 'rgba(255,255,255,0.55)', marginBottom: 4 }}>👥 Panel de Inversionistas</div>
+                {otherTeams.map((ot) => {
+                  const ev = receivedEvaluations.find((e: any) => e.evaluator_team === ot.id || e.evaluator_team_id === ot.id);
                   return (
-                    <motion.div
-                      key={otherTeam.id}
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      className={`border-2 rounded-lg p-3 sm:p-4 ${
-                        hasEvaluated
-                          ? 'bg-gradient-to-br from-green-50 to-green-100 border-green-300'
-                          : 'bg-gray-50 border-gray-300'
-                      } transition-all`}
-                    >
-                      <div className="flex items-center justify-between mb-2 sm:mb-3">
-                        <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
-                          <div
-                            className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center text-white font-bold text-sm sm:text-base shadow-md flex-shrink-0"
-                            style={{ backgroundColor: getTeamColorHex(otherTeam.color) }}
-                          >
-                            {otherTeam.color.charAt(0).toUpperCase()}
-                    </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="font-semibold text-sm sm:text-base text-[#093c92] truncate">
-                              {(() => {
-                                const match = otherTeam.name?.match(/^Equipo\s+(.+)$/i);
-                                const teamDisplayName = match ? match[1] : (otherTeam.name || otherTeam.color);
-                                return `Start-up ${teamDisplayName}`;
-                              })()}
-                            </p>
-                </div>
-                        </div>
-                        <div className="flex-shrink-0">
-                          {hasEvaluated ? (
-                            <div className="flex items-center gap-2">
-                              <CheckCircle2 className="w-5 h-5 sm:w-6 sm:h-6 text-green-600" />
-                              <span className="text-xs sm:text-sm font-semibold text-green-700">Votado</span>
-                            </div>
-                          ) : (
-                            <div className="flex items-center gap-2">
-                              <Clock className="w-5 h-5 sm:w-6 sm:h-6 text-yellow-500" />
-                              <span className="text-xs sm:text-sm font-semibold text-yellow-700">Deliberando...</span>
-              </div>
-            )}
-                        </div>
+                    <div key={ot.id} style={{ background: ev ? 'rgba(16,185,129,0.06)' : 'rgba(255,255,255,0.04)', border: ev ? '1.5px solid rgba(16,185,129,0.3)' : '1.5px solid rgba(255,255,255,0.1)', borderRadius: 16, padding: '14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+                      <div style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 13, fontWeight: 700, color: '#fff' }}>
+                        {(() => { const m = ot.name?.match(/^Equipo\s+(.+)$/i); return `Start-up ${m ? m[1] : ot.name}`; })()}
                       </div>
-
-                      {hasEvaluated && evaluation && (
-                        <div className="mt-2 sm:mt-3 pt-2 sm:pt-3 border-t border-green-200">
-                          <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-2">
-                            <div className="text-center">
-                              <p className="text-xs text-gray-600 mb-0.5">Claridad</p>
-                              <p className="font-bold text-sm sm:text-base text-blue-600">{evaluation.criteria_scores?.clarity || 0}/10</p>
+                      {ev ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                          {[{l:'Claridad',v:ev.criteria_scores?.clarity},{l:'Solución',v:ev.criteria_scores?.solution},{l:'Pitch',v:ev.criteria_scores?.presentation}].map(s => (
+                            <div key={s.l} style={{ textAlign: 'center' }}>
+                              <div style={{ fontFamily: "'Exo 2', sans-serif", fontSize: 10, color: 'rgba(255,255,255,0.5)' }}>{s.l}</div>
+                              <div style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 13, fontWeight: 700, color: '#10b981' }}>{s.v ?? 0}/10</div>
                             </div>
-                            <div className="text-center">
-                              <p className="text-xs text-gray-600 mb-0.5">Solución</p>
-                              <p className="font-bold text-sm sm:text-base text-green-600">{evaluation.criteria_scores?.solution || 0}/10</p>
-                            </div>
-                            <div className="text-center">
-                              <p className="text-xs text-gray-600 mb-0.5">Presentación</p>
-                              <p className="font-bold text-sm sm:text-base text-purple-600">{evaluation.criteria_scores?.presentation || 0}/10</p>
-                            </div>
-                          </div>
-                          <div className="flex flex-wrap justify-between items-center gap-2 mt-2">
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs sm:text-sm text-gray-700 font-semibold">Total:</span>
-                              <span className="text-sm sm:text-base font-bold text-green-700">{evaluation.total_score}/30</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Coins className="w-4 h-4 text-yellow-600" />
-                              <span className="text-xs sm:text-sm font-bold text-yellow-700">{evaluation.tokens_awarded} tokens</span>
-                            </div>
-                          </div>
-                          {evaluation.feedback && (
-                            <div className="mt-2 pt-2 border-t border-green-200">
-                              <p className="text-xs text-gray-600 font-semibold mb-1">Feedback:</p>
-                              <p className="text-xs sm:text-sm text-gray-800">{evaluation.feedback}</p>
-                            </div>
-                          )}
+                          ))}
+                          <div style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 10, fontWeight: 700, color: '#fbbf24', display: 'flex', alignItems: 'center', gap: 4 }}><Coins style={{ width: 14, height: 14 }} />{ev.tokens_awarded}</div>
                         </div>
+                      ) : (
+                        <div style={{ fontFamily: "'Exo 2', sans-serif", fontSize: 12, color: 'rgba(251,191,36,0.7)' }}>⏳ Deliberando…</div>
                       )}
-                    </motion.div>
+                    </div>
                   );
                 })}
               </div>
 
-              <p className="text-center text-gray-500 text-xs sm:text-sm mt-4 sm:mt-6">
+              <p style={{ fontFamily: "'Exo 2', sans-serif", fontSize: 12, color: 'rgba(255,255,255,0.3)', textAlign: 'center' }}>
                 Espera a que el profesor avance al siguiente turno
               </p>
-            </motion.div>
+            </div>
           );
         })()}
 
-        {/* Estado: Esperando turno (cuando otro equipo se está preparando) */}
+        {/* Estado: Esperando turno (otro equipo preparándose) */}
         {presentationState === 'preparing' && !isMyTurn && (() => {
-          const myPosition = getMyPosition();
-          const currentPosition = getCurrentPresentingPosition();
-          const preparingTeam = presentationStatus?.teams.find(
-            t => t.id === presentationStatus.current_presentation_team_id
-          );
-          
+          const preparingTeam = presentationStatus?.teams.find(t => t.id === presentationStatus.current_presentation_team_id);
           return (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="bg-white rounded-xl shadow-xl p-4 sm:p-6 text-center"
-            >
-              <div className="text-4xl sm:text-5xl mb-3 sm:mb-4">⏳</div>
-              <h2 className="text-xl sm:text-2xl font-bold text-[#093c92] mb-3 sm:mb-4">
-                Esperando Tu Turno
-              </h2>
-              
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20, textAlign: 'center', minHeight: '70vh', justifyContent: 'center' }}>
+              <div style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 10, fontWeight: 600, letterSpacing: 5, textTransform: 'uppercase', color: 'rgba(96,165,250,0.95)', background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.3)', borderRadius: 50, padding: '6px 20px' }}>
+                ⏳ En espera
+              </div>
+
+              <div style={{ position: 'relative', width: 120, height: 120, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: 'radial-gradient(circle,rgba(59,130,246,0.4) 0%,transparent 65%)', filter: 'blur(16px)' }} />
+                <div style={{ fontSize: 68, filter: 'drop-shadow(0 0 24px rgba(59,130,246,0.8))', animation: 'hgFloat 3s ease-in-out infinite', position: 'relative', zIndex: 1 }}>⏳</div>
+              </div>
+
+              <h1 style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 'clamp(24px,4.4vw,40px)', fontWeight: 900, color: '#fff', letterSpacing: 2, textTransform: 'uppercase', textShadow: '0 0 50px rgba(59,130,246,0.5)', margin: 0, lineHeight: 1.1 }}>
+                Esperando<br />tu Turno
+              </h1>
+
+              <p style={{ fontFamily: "'Exo 2', sans-serif", fontSize: 15, fontWeight: 300, color: 'rgba(255,255,255,0.6)', maxWidth: 560, lineHeight: 1.7, margin: 0 }}>
+                La Start-up <b style={{ color: '#fff' }}>{preparingTeam ? getTeamName(preparingTeam).toUpperCase() : '…'}</b> está tomando posición en el escenario.
+              </p>
+
               {preparingTeam && (
-                <p className="text-gray-600 text-sm sm:text-base mb-3 sm:mb-4">
-                  La Startup <span className="font-bold text-[#093c92]">{getTeamName(preparingTeam).toUpperCase()}</span> está tomando posición en el escenario.
-                </p>
-              )}
-              
-              {myPosition && (
-                <div className="bg-gradient-to-r from-blue-50 to-blue-100 border-2 border-blue-300 rounded-xl p-3 sm:p-4 mb-3 sm:mb-4">
-                  <p className="text-blue-800 font-semibold text-base sm:text-lg">
-                    📋 Tu Start-up presenta {getPositionText(myPosition)}
-                  </p>
-                  {currentPosition && myPosition > currentPosition && (
-                    <p className="text-blue-600 text-xs sm:text-sm mt-2">
-                      {myPosition - currentPosition === 1 
-                        ? 'Tu turno es el siguiente'
-                        : `Faltan ${myPosition - currentPosition} presentaciones antes de tu turno`
-                      }
-                    </p>
-                  )}
+                <div style={{ background: 'rgba(59,130,246,0.06)', border: '1px solid rgba(59,130,246,0.3)', borderRadius: 22, backdropFilter: 'blur(16px)', padding: '20px 24px', maxWidth: 520, width: '100%', display: 'flex', flexDirection: 'column', gap: 12, boxShadow: '0 20px 60px rgba(0,0,0,0.4)' }}>
+                  <div style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: 3, textTransform: 'uppercase', color: 'rgba(96,165,250,0.95)', textAlign: 'center' }}>PRESENTANDO AHORA</div>
+                  <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
+                    <div style={{ width: 72, height: 72, borderRadius: 16, background: '#0a0e2a', border: '1px solid rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32, flexShrink: 0 }}>🚀</div>
+                    <div style={{ textAlign: 'left' }}>
+                      <div style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 16, fontWeight: 900, color: '#fff', letterSpacing: 1, marginBottom: 4 }}>{getTeamName(preparingTeam).toUpperCase()}</div>
+                      <div style={{ fontFamily: "'Exo 2', sans-serif", fontSize: 12, color: 'rgba(255,255,255,0.5)' }}>🟢 Equipo {preparingTeam.color}</div>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'center' }}>
+                    <div style={{ display: 'inline-flex', gap: 8, alignItems: 'center', padding: '7px 14px', background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: 50, fontFamily: 'Orbitron, sans-serif', fontSize: 10, fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', color: '#10b981' }}>
+                      <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#10b981', boxShadow: '0 0 12px #10b981', animation: 'livePulse 1.2s ease-in-out infinite' }} />
+                      En vivo en el escenario
+                    </div>
+                  </div>
                 </div>
               )}
-              
-              <p className="text-gray-500 text-xs sm:text-sm mt-3 sm:mt-4">
-                Prepárense para cuando sea su turno.
-              </p>
-            </motion.div>
+            </div>
           );
         })()}
-        </div>
+
       </div>
 
-      {/* Modal de U-Bot */}
       {team && (
         <UBotPresentacionPitchModal
           isOpen={showUBotModal}
@@ -1478,4 +1198,3 @@ export function TabletPresentacionPitch() {
     </div>
   );
 }
-

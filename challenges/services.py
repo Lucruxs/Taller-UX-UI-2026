@@ -23,7 +23,7 @@ def generate_word_search(words: List[str], seed: Optional[int] = None, max_attem
     Si no, intenta de nuevo con una nueva semilla.
     
     Args:
-        words: Lista de palabras a colocar en la sopa de letras (máximo 10 caracteres cada una)
+        words: Lista de palabras a colocar en la sopa de letras (palabras de más de 10 caracteres serán ignoradas)
         seed: Semilla opcional para generar la misma sopa de letras determinísticamente
         max_attempts: Número máximo de intentos para generar una sopa válida
     
@@ -33,15 +33,10 @@ def generate_word_search(words: List[str], seed: Optional[int] = None, max_attem
     GRID_SIZE = 12
     
     # Validar que todas las palabras tengan máximo 10 caracteres
-    palabras_filtradas = [w.upper() for w in words if len(w) <= 10]
-    if len(palabras_filtradas) < len(words):
-        palabras_demasiado_largas = [w for w in words if len(w) > 10]
-        raise ValueError(f"Las siguientes palabras exceden 10 caracteres: {', '.join(palabras_demasiado_largas)}")
-    
+    palabras_filtradas = [w.upper() for w in words if w and len(w) <= 10]
+    if not palabras_filtradas:
+        palabras_filtradas = ['EQUIPO', 'MISION', 'IDEAS']
     palabras_usar = palabras_filtradas[:10]  # Máximo 10 palabras
-    
-    if not palabras_usar:
-        raise ValueError("Se requiere al menos una palabra")
     
     # Intentar generar la sopa de letras hasta que todas las palabras se coloquen
     for attempt in range(max_attempts):

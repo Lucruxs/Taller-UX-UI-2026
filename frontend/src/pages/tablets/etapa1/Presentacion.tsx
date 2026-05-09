@@ -6,7 +6,11 @@ import { Button } from '@/components/ui/button';
 import { UBotPresentacionModal } from '@/components/UBotPresentacionModal';
 import { toast } from 'sonner';
 import { tabletConnectionsAPI, sessionsAPI, teamPersonalizationsAPI, teamActivityProgressAPI, challengesAPI } from '@/services';
+import { advanceActivityOnTimerExpiration } from '@/utils/timerAutoAdvance';
+import { getResultsRedirectUrl } from '@/utils/tabletResultsRedirect';
 import { GeneralKnowledgeQuiz } from '@/components/minigames/GeneralKnowledgeQuiz';
+import { GalacticPage } from '@/components/GalacticPage';
+import { GlassCard } from '@/components/GlassCard';
 
 interface Team {
   id: number;
@@ -125,6 +129,8 @@ export function TabletPresentacion() {
       const gameData = lobbyData.game_session;
       const sessionId = statusData.game_session.id;
 
+      const resultsUrl = getResultsRedirectUrl(gameData, connId);
+      if (resultsUrl) { window.location.href = resultsUrl; return; }
 
       // Verificar si el juego ha finalizado o está en lobby
       if (gameData.status === 'finished' || gameData.status === 'completed') {
@@ -170,19 +176,11 @@ export function TabletPresentacion() {
 
       setCurrentActivityId(gameData.current_activity);
 
-      // Obtener session_stage
+      // Obtener session_stage desde lobby data (ya disponible, sin fetch extra)
       let sessionStageIdToUse = currentSessionStageId;
-      if (!sessionStageIdToUse) {
-        try {
-          const stagesData = await sessionsAPI.getSessionStages(statusData.game_session.id);
-          const stages = Array.isArray(stagesData) ? stagesData : [stagesData];
-          if (stages.length > 0) {
-            sessionStageIdToUse = stages[0].id;
-            setCurrentSessionStageId(sessionStageIdToUse);
-          }
-        } catch (error) {
-          console.error('Error loading session stages:', error);
-        }
+      if (!sessionStageIdToUse && gameData.current_session_stage) {
+        sessionStageIdToUse = gameData.current_session_stage;
+        setCurrentSessionStageId(sessionStageIdToUse);
       }
 
       console.log('[loadGameState] Datos para verificar progreso:', {
@@ -486,7 +484,10 @@ export function TabletPresentacion() {
 
       if (remaining <= 0) {
         setTimerRemaining('00:00');
-        timeExpiredRef.current = true;
+        if (!timeExpiredRef.current) {
+          timeExpiredRef.current = true;
+          void advanceActivityOnTimerExpiration(gameSessionId);
+        }
         return;
       }
 
@@ -505,7 +506,10 @@ export function TabletPresentacion() {
             timerIntervalRef.current = null;
           }
           setTimerRemaining('00:00');
-          timeExpiredRef.current = true;
+          if (!timeExpiredRef.current) {
+            timeExpiredRef.current = true;
+            void advanceActivityOnTimerExpiration(gameSessionId);
+          }
         }
       };
 
@@ -924,9 +928,9 @@ export function TabletPresentacion() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#093c92] via-blue-600 to-[#f757ac]">
-        <Loader2 className="w-8 h-8 animate-spin text-white" />
-      </div>
+      <GalacticPage className="items-center justify-center">
+        <Loader2 className="w-12 h-12 animate-spin" style={{ color: '#c026d3' }} />
+      </GalacticPage>
     );
   }
 
@@ -942,129 +946,42 @@ export function TabletPresentacion() {
   }
 
   return (
-    <div className="relative min-h-screen overflow-hidden flex flex-col">
-      {/* Fondo animado igual que Panel */}
-      <div className="absolute inset-0 bg-gradient-to-br from-[#093c92] via-blue-600 to-[#f757ac]">
-        <motion.div
-          animate={{
-            backgroundPosition: ['0% 0%', '100% 100%'],
-          }}
-          transition={{
-            duration: 20,
-            repeat: Infinity,
-            repeatType: 'reverse',
-          }}
-          className="absolute inset-0 opacity-20"
-          style={{
-            backgroundImage: 'radial-gradient(circle, white 1px, transparent 1px)',
-            backgroundSize: '50px 50px',
-          }}
-        />
-        
-        {/* Efectos de partículas adicionales */}
-        <div className="absolute inset-0">
-          {[...Array(20)].map((_, i) => (
-            <motion.div
-              key={i}
-              className="absolute w-2 h-2 bg-white rounded-full opacity-30"
-              initial={{
-                x: Math.random() * (typeof window !== 'undefined' ? window.innerWidth : 1920),
-                y: Math.random() * (typeof window !== 'undefined' ? window.innerHeight : 1080),
-              }}
-              animate={{
-                y: [null, Math.random() * (typeof window !== 'undefined' ? window.innerHeight : 1080)],
-                opacity: [0.3, 0.6, 0.3],
-              }}
-              transition={{
-                duration: 3 + Math.random() * 2,
-                repeat: Infinity,
-                delay: Math.random() * 2,
-              }}
-            />
-          ))}
+    <GalacticPage padding="p-4 md:p-6">
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ width: 12, height: 12, borderRadius: '50%', background: team?.color ? getTeamColorHex(team.color) : '#c026d3' }} />
+          <span style={{ fontFamily: "'Exo 2',sans-serif", fontSize: 16, fontWeight: 700, color: '#fff' }}>
+            {personalization?.team_name || team?.name || 'Mi Equipo'}
+          </span>
+        </div>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          <div className="glass-card" style={{ padding: '6px 14px' }}>
+            <span style={{ fontFamily: "'Orbitron',sans-serif", fontSize: 13, color: '#fbbf24' }}>
+              ⭐ {team?.tokens_total ?? 0}
+            </span>
+          </div>
+          {timerRemaining !== '--:--' && (
+            <div className="glass-card" style={{ padding: '6px 14px' }}>
+              <span style={{ fontFamily: "'Orbitron',sans-serif", fontSize: 13, color: '#fff' }}>
+                ⏱ {timerRemaining}
+              </span>
+            </div>
+          )}
         </div>
       </div>
 
-      <div className="relative z-10 p-3 sm:p-4">
-        <div className="max-w-6xl mx-auto relative z-20">
-        {/* Header Mejorado */}
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-white/95 backdrop-blur-sm rounded-2xl sm:rounded-3xl shadow-2xl p-4 sm:p-6 mb-4 sm:mb-6 flex items-center justify-between flex-wrap gap-4"
-        >
-          <div className="flex items-center gap-3 sm:gap-4">
-            <motion.div
-              whileHover={{ scale: 1.1, rotate: 5 }}
-              whileTap={{ scale: 0.95 }}
-              className="w-12 h-12 sm:w-14 sm:h-14 rounded-full flex items-center justify-center text-white text-lg sm:text-xl font-bold shadow-lg"
-              style={{ backgroundColor: getTeamColorHex(team.color) }}
-            >
-              {team.color.charAt(0).toUpperCase()}
-            </motion.div>
-            <div>
-              <h3 className="text-lg sm:text-xl font-bold text-gray-800">
-                {personalization?.team_name 
-                  ? `Start-up ${personalization.team_name}` 
-                  : `Start-up ${team.color}`}
-              </h3>
-              <p className="text-xs sm:text-sm text-gray-600">Equipo {team.color}</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            {team && (
-              <motion.button
-                onClick={() => setShowUBotModal(true)}
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                className="bg-gradient-to-r from-pink-500 to-pink-600 text-white px-5 py-2.5 rounded-full font-semibold text-sm sm:text-base flex items-center gap-2 shadow-lg"
-              >
-                <Bot className="w-4 h-4 sm:w-5 sm:h-5" />
-                <span>U-Bot</span>
-              </motion.button>
-            )}
-            <motion.div
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              className="bg-gradient-to-r from-[#093c92] to-blue-700 text-white px-5 py-2.5 rounded-full font-semibold text-sm sm:text-base flex items-center gap-2 shadow-lg"
-            >
-              <Coins className="w-4 h-4 sm:w-5 sm:h-5" /> {team.tokens_total || 0} Tokens
-            </motion.div>
-          </div>
-        </motion.div>
+      {/* Activity subtitle */}
+      <div style={{ textAlign: 'center', marginBottom: 16 }}>
+        <div className="galactic-label" style={{ marginBottom: 4 }}>
+          {currentPart === 'presentation' ? 'Registro de Socios' : currentPart === 'chaos' ? 'Preguntas del Caos' : 'Conocimiento General'}
+        </div>
+      </div>
 
-        {/* Formulario Mejorado */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-white rounded-xl shadow-xl p-4 sm:p-6 relative"
-        >
-          {/* Temporizador en esquina superior derecha */}
-          <div className="absolute top-4 right-4 bg-yellow-50 border-2 border-yellow-300 rounded-lg px-3 py-2 shadow-sm">
-            <div className="flex items-center gap-2">
-              <Clock className="w-4 h-4 text-yellow-700" />
-              <span className="text-yellow-800 font-semibold text-sm sm:text-base">
-                <span className="font-bold">{timerRemaining}</span>
-              </span>
-            </div>
-          </div>
-
-          {/* Título y Descripción */}
-          <div className="mb-4 sm:mb-5 pr-24 sm:pr-32">
-            <h2 className="text-xl sm:text-2xl font-bold text-[#093c92] mb-2">
-              2. Presentación - {currentPart === 'presentation' ? 'Registro de Socios' : currentPart === 'chaos' ? 'Preguntas del Caos' : 'Conocimiento General'}
-            </h2>
-            <p className="text-gray-600 text-sm">
-              {currentPart === 'presentation' 
-                ? 'Para que la Start-up funcione, deben saber con quién trabajan.'
-                : currentPart === 'chaos'
-                ? 'Cada estudiante presiona el botón para recibir una pregunta aleatoria'
-                : 'Responde las preguntas de conocimiento general'}
-            </p>
-          </div>
-
-          {/* Contenido según la parte actual */}
-          {currentPart === 'presentation' ? (
+      {/* Part content */}
+      <GlassCard style={{ flex: 1, padding: 20 }}>
+        {/* Contenido según la parte actual */}
+        {currentPart === 'presentation' ? (
             <>
               {/* Parte 1: Guía visual para presentación (sin capturar respuestas) */}
               <div className="bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 rounded-2xl p-6 sm:p-8 mb-4 sm:mb-5 border border-purple-200/50 shadow-lg relative overflow-hidden">
@@ -1332,9 +1249,7 @@ export function TabletPresentacion() {
               )}
             </>
           ) : null}
-        </motion.div>
-        </div>
-      </div>
+      </GlassCard>
 
       {/* Modal de U-Bot para Presentación */}
       {team && (
@@ -1347,9 +1262,7 @@ export function TabletPresentacion() {
           teamColor={team.color}
         />
       )}
-
-      {/* Música de fondo */}
-    </div>
+    </GalacticPage>
   );
 }
 

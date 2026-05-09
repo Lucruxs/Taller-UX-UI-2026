@@ -29,6 +29,10 @@ export default {
         input: '#e5e7eb',
         ring: '#f757ac',
       },
+      fontFamily: {
+        orbitron: ['Orbitron', 'sans-serif'],
+        exo: ['"Exo 2"', 'sans-serif'],
+      },
       borderRadius: {
         lg: '1rem',
         md: '0.75rem',

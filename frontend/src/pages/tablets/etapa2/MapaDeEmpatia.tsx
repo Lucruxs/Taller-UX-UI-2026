@@ -14,6 +14,7 @@ import {
   tabletConnectionsAPI,
   teamActivityProgressAPI
 } from '@/services';
+import { advanceActivityOnTimerExpiration } from '@/utils/timerAutoAdvance';
 import { toast } from 'sonner';
 
 interface Team {
@@ -526,6 +527,7 @@ export function TabletMapaDeEmpatia() {
         if (remaining === 0 && !timeExpiredRef.current) {
           timeExpiredRef.current = true;
           toast.warning('¡El tiempo ha terminado!');
+          void advanceActivityOnTimerExpiration(gameSessionId);
         }
         
         const minutes = Math.floor(remaining / 60);
@@ -759,8 +761,7 @@ export function TabletMapaDeEmpatia() {
                               maxLength={empathyMapConfig.max_item_length}
                               className="flex-1 px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2"
                               style={{ 
-                                borderColor: quadrant.color,
-                                focusRingColor: quadrant.color
+                                borderColor: quadrant.color
                               }}
                               autoFocus
                               onKeyDown={(e) => {
@@ -812,9 +813,6 @@ export function TabletMapaDeEmpatia() {
                       </div>
                     ))}
                   </div>
-                      </div>
-                    ))}
-                  </div>
 
                   {/* Botón agregar item */}
                   {!isSubmitted && (
@@ -828,8 +826,7 @@ export function TabletMapaDeEmpatia() {
                             maxLength={empathyMapConfig.max_item_length}
                             className="flex-1 px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2"
                             style={{ 
-                              borderColor: quadrant.color,
-                              focusRingColor: quadrant.color
+                              borderColor: quadrant.color
                             }}
                             placeholder={`Agregar a ${quadrant.title.toLowerCase()}`}
                             autoFocus

@@ -1,13 +1,51 @@
 import { useState, useEffect, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import {
-  Loader2, Clock, Save, CheckCircle2, FileText, Lightbulb, Target, Award, Bot, Coins
-} from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Loader2 } from 'lucide-react';
 import { UBotFormularioPitchModal } from '@/components/UBotFormularioPitchModal';
-import { sessionsAPI, tabletConnectionsAPI, teamActivityProgressAPI } from '@/services';
+import StarField from '../etapa2/StarField';
+import {
+  sessionsAPI, tabletConnectionsAPI, teamActivityProgressAPI, challengesAPI,
+} from '@/services';
+import { getResultsRedirectUrl } from '@/utils/tabletResultsRedirect';
+import { advanceActivityOnTimerExpiration } from '@/utils/timerAutoAdvance';
 import { toast } from 'sonner';
+
+const GALACTIC_CSS = `
+@keyframes phPulse{0%,100%{opacity:1}50%{opacity:.55}}
+`;
+
+const BOX_CONFIG = [
+  {
+    key: 'dolor', field: 'intro_problem' as const, emoji: '💥', n: '01',
+    tag: 'MOVIMIENTO 1', title: 'El Dolor', color: '#ef4444',
+    helper: 'Describe el problema desde la perspectiva de tu persona.',
+    example: 'Ej: "Martina pasa horas buscando comida saludable pero solo encuentra opciones caras."',
+  },
+  {
+    key: 'rescate', field: 'solution' as const, emoji: '🚀', n: '02',
+    tag: 'MOVIMIENTO 2', title: 'El Rescate', color: '#3b82f6',
+    helper: 'Explica tu solución y cómo funciona.',
+    example: 'Ej: "Creamos una app que conecta comedores saludables en 3 clics."',
+  },
+  {
+    key: 'diferencia', field: 'value' as const, emoji: '✨', n: '03',
+    tag: 'MOVIMIENTO 3', title: 'Diferencia', color: '#c026d3',
+    helper: '¿Qué hace única a tu solución frente a lo que existe?',
+    example: 'Ej: "A diferencia de UberEats, filtramos solo por criterios de salud certificados."',
+  },
+  {
+    key: 'futuro', field: 'impact' as const, emoji: '🌅', n: '04',
+    tag: 'MOVIMIENTO 4', title: 'El Futuro', color: '#10b981',
+    helper: 'Impacto y escalabilidad de tu propuesta.',
+    example: 'Ej: "En 2 años, podemos llegar a 50.000 usuarios en 5 ciudades."',
+  },
+  {
+    key: 'cierre', field: 'closing' as const, emoji: '🎯', n: '05',
+    tag: 'MOVIMIENTO 5', title: 'Golpe Final', color: '#f59e0b',
+    helper: 'Un cierre memorable que quede grabado en la mente.',
+    example: 'Ej: "Porque la salud no debería ser un privilegio. ¿Nos acompañan?"',
+  },
+] as const;
 
 interface Team {
   id: number;
@@ -21,37 +59,30 @@ interface GameSession {
   current_activity: number | null;
   current_activity_name: string | null;
   current_stage_number?: number;
+  show_results_stage?: number;
 }
 
 export function TabletFormularioPitch() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [team, setTeam] = useState<Team | null>(null);
-  const [gameSessionId, setGameSessionId] = useState<number | null>(null);
   const [currentActivityId, setCurrentActivityId] = useState<number | null>(null);
   const [currentSessionStageId, setCurrentSessionStageId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [timerRemaining, setTimerRemaining] = useState<string>('--:--');
-  const [connectionId, setConnectionId] = useState<string | null>(null);
   const [showUBotModal, setShowUBotModal] = useState(false);
-  
+
   const [pitchIntroProblem, setPitchIntroProblem] = useState('');
   const [pitchSolution, setPitchSolution] = useState('');
   const [pitchValue, setPitchValue] = useState('');
   const [pitchImpact, setPitchImpact] = useState('');
   const [pitchClosing, setPitchClosing] = useState('');
   const [hasSaved, setHasSaved] = useState(false);
-  const [progressPercentage, setProgressPercentage] = useState(0);
-  const [isTyping, setIsTyping] = useState(false);
+  const [view, setView] = useState<'builder' | 'preview'>('builder');
+  const [personaName, setPersonaName] = useState<string | null>(null);
+  const [prototypeName, setPrototypeName] = useState<string | null>(null);
   const [focusedField, setFocusedField] = useState<string | null>(null);
-  const [lastSavedValues, setLastSavedValues] = useState<{
-    intro_problem: string;
-    solution: string;
-    value: string;
-    impact: string;
-    closing: string;
-  }>({ intro_problem: '', solution: '', value: '', impact: '', closing: '' });
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isUpdatingFromServerRef = useRef<boolean>(false);
   const isTypingRef = useRef<boolean>(false);
@@ -69,7 +100,6 @@ export function TabletFormularioPitch() {
       navigate('/tablet/join');
       return;
     }
-    setConnectionId(connId);
     loadGameState(connId);
 
     return () => {
@@ -83,7 +113,7 @@ export function TabletFormularioPitch() {
   const loadGameState = async (connId: string) => {
     try {
       const statusData = await tabletConnectionsAPI.getStatus(connId);
-      
+
       if (!statusData || !statusData.team) {
         toast.error('Conexión no encontrada. Por favor reconecta.');
         setTimeout(() => {
@@ -94,14 +124,14 @@ export function TabletFormularioPitch() {
 
       const teamData: Team = statusData.team;
       setTeam(teamData);
-      setGameSessionId(statusData.game_session.id);
 
-      // Usar lobby en lugar de getById para evitar problemas de autenticación
       const lobbyData = await sessionsAPI.getLobby(statusData.game_session.id);
       const gameData: GameSession = lobbyData.game_session;
       const sessionId = statusData.game_session.id;
 
-      // Mostrar modal de U-Bot si no se ha visto
+      const resultsUrl = getResultsRedirectUrl(gameData, connId);
+      if (resultsUrl) { window.location.href = resultsUrl; return; }
+
       if (gameData.current_stage_number === 4) {
         const ubotKey = `ubot_formulario_pitch_${sessionId}`;
         const hasSeenUBot = localStorage.getItem(ubotKey);
@@ -130,19 +160,16 @@ export function TabletFormularioPitch() {
         return;
       }
 
-      // Verificar si el profesor avanzó a la actividad de presentación
       if (currentActivityName && (currentActivityName.includes('presentacion') || currentActivityName.includes('presentación'))) {
         window.location.href = `/tablet/etapa4/presentacion-pitch/?connection_id=${connId}`;
         return;
       }
 
-      // Si no hay actividad activa, puede ser que la etapa terminó
       if (!gameData.current_activity) {
         window.location.href = `/tablet/etapa4/resultados/?connection_id=${connId}`;
         return;
       }
 
-      // Si la actividad cambió y ya no es formulario, redirigir al lobby para que determine
       if (currentActivityId && gameData.current_activity !== currentActivityId && !currentActivityName.includes('formulario')) {
         window.location.href = `/tablet/lobby?connection_id=${connId}`;
         return;
@@ -156,34 +183,29 @@ export function TabletFormularioPitch() {
 
       if (sessionStage) {
         setCurrentSessionStageId(sessionStage.id);
-        // Solo cargar el estado inicial si no estamos escribiendo
         if (!isTypingRef.current && !focusedFieldRef.current) {
-          await loadPitchStatus(statusData.game_session.id, teamData.id, gameData.current_activity, sessionStage.id);
+          await loadPitchStatus(teamData.id, gameData.current_activity, sessionStage.id);
         }
-        startTimer(gameData.current_activity, statusData.game_session.id);
+        startTimer(statusData.game_session.id);
       }
 
       setLoading(false);
+      void loadPersonaAndPrototype(teamData.id, statusData.game_session.id);
 
-      // Limpiar intervalo anterior si existe antes de crear uno nuevo
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
       }
 
-      // Solo actualizar si el usuario no está escribiendo
       intervalRef.current = setInterval(() => {
-        // No actualizar si el usuario está escribiendo o hay un campo con foco (usar refs)
         if (!isTypingRef.current && !focusedFieldRef.current && !isUpdatingFromServerRef.current) {
           loadGameState(connId);
         }
       }, 5000);
     } catch (error: any) {
-      // Ignorar errores de petición cancelada (ECONNABORTED)
       if (error.code === 'ECONNABORTED' || error.message === 'Request aborted') {
         return;
       }
       console.error('Error loading game state:', error);
-      // Solo mostrar toast si no es un error de cancelación
       if (error.code !== 'ECONNABORTED' && error.message !== 'Request aborted') {
         toast.error('Error de conexión: ' + (error.response?.data?.error || error.message || 'Error desconocido'));
       }
@@ -191,8 +213,7 @@ export function TabletFormularioPitch() {
     }
   };
 
-  const loadPitchStatus = async (gameSessionId: number, teamId: number, activityId: number, sessionStageId: number) => {
-    // No cargar si el usuario está escribiendo o hay un campo con foco (usar refs para valores actuales)
+  const loadPitchStatus = async (teamId: number, activityId: number, sessionStageId: number) => {
     if (isTypingRef.current || focusedFieldRef.current || isUpdatingFromServerRef.current) {
       return;
     }
@@ -213,15 +234,12 @@ export function TabletFormularioPitch() {
         const serverImpact = progress.pitch_impact || '';
         const serverClosing = progress.pitch_closing || '';
 
-        // Verificar nuevamente antes de actualizar (por si cambió el estado durante la petición)
         if (isTypingRef.current || focusedFieldRef.current || isUpdatingFromServerRef.current) {
           return;
         }
 
         isUpdatingFromServerRef.current = true;
 
-        // Solo actualizar si el valor del servidor es diferente al valor actual
-        // Y el campo no tiene foco (usar ref para valor actual)
         if (focusedFieldRef.current !== 'intro_problem' && serverIntro !== pitchIntroProblem) {
           setPitchIntroProblem(serverIntro);
         }
@@ -238,29 +256,16 @@ export function TabletFormularioPitch() {
           setPitchClosing(serverClosing);
         }
 
-        // Actualizar valores guardados para comparación futura
-        setLastSavedValues({
-          intro_problem: serverIntro,
-          solution: serverSolution,
-          value: serverValue,
-          impact: serverImpact,
-          closing: serverClosing,
-        });
-
-        setProgressPercentage(progress.progress_percentage || 0);
         setHasSaved(progress.status === 'completed');
 
-        // Pequeño delay antes de permitir nuevas actualizaciones
         setTimeout(() => {
           isUpdatingFromServerRef.current = false;
         }, 100);
       }
     } catch (error: any) {
-      // Ignorar errores de petición cancelada (ECONNABORTED)
       if (error.code === 'ECONNABORTED' || error.message === 'Request aborted') {
         return;
       }
-      // Solo loguear errores que no sean de cancelación
       if (error.code !== 'ECONNABORTED' && error.message !== 'Request aborted') {
         console.error('Error loading pitch status:', error);
       }
@@ -268,8 +273,35 @@ export function TabletFormularioPitch() {
     }
   };
 
-  const startTimer = async (activityId: number, gameSessionId: number) => {
-    // Limpiar intervalos anteriores antes de crear nuevos
+  const loadPersonaAndPrototype = async (teamId: number, sessionId: number) => {
+    try {
+      const stages = await sessionsAPI.getSessionStages(sessionId);
+      const stagesArray = Array.isArray(stages) ? stages : [];
+
+      const stage2 = stagesArray.find((s: any) => s.stage_number === 2);
+      if (stage2) {
+        const prog = await teamActivityProgressAPI.list({ team: teamId, session_stage: stage2.id });
+        const progArray = Array.isArray(prog) ? prog : [];
+        const challengeId = progArray[0]?.selected_challenge;
+        if (challengeId) {
+          const challenge = await challengesAPI.getChallengeById(challengeId);
+          if (challenge?.persona_name) setPersonaName(challenge.persona_name);
+        }
+      }
+
+      const stage3 = stagesArray.find((s: any) => s.stage_number === 3);
+      if (stage3) {
+        const prog = await teamActivityProgressAPI.list({ team: teamId, session_stage: stage3.id });
+        const progArray = Array.isArray(prog) ? prog : [];
+        const productName = progArray[0]?.response_data?.product_name;
+        if (productName) setPrototypeName(productName);
+      }
+    } catch {
+      // Silently fail — pills show '—' as fallback
+    }
+  };
+
+  const startTimer = async (gameSessionId: number) => {
     if (timerIntervalRef.current) {
       clearInterval(timerIntervalRef.current);
       timerIntervalRef.current = null;
@@ -307,6 +339,7 @@ export function TabletFormularioPitch() {
               timerIntervalRef.current = null;
             }
             setTimerRemaining('00:00');
+            void advanceActivityOnTimerExpiration(gameSessionId);
           }
         }
       };
@@ -314,7 +347,6 @@ export function TabletFormularioPitch() {
       updateTimer();
       timerIntervalRef.current = setInterval(updateTimer, 1000);
 
-      // Limpiar intervalo de sincronización anterior si existe
       if (timerSyncIntervalRef.current) {
         clearInterval(timerSyncIntervalRef.current);
       }
@@ -327,14 +359,12 @@ export function TabletFormularioPitch() {
             timerDurationRef.current = syncData.timer_duration;
           }
         } catch (error: any) {
-          // Ignorar errores de petición cancelada (ECONNABORTED)
           if (error.code !== 'ECONNABORTED' && error.message !== 'Request aborted') {
             console.error('Error syncing timer:', error);
           }
         }
       }, 5000);
     } catch (error: any) {
-      // Ignorar errores de petición cancelada (ECONNABORTED)
       if (error.code !== 'ECONNABORTED' && error.message !== 'Request aborted') {
         console.error('Error starting timer:', error);
       }
@@ -348,7 +378,7 @@ export function TabletFormularioPitch() {
     }
 
     try {
-      const response = await teamActivityProgressAPI.savePitch({
+      await teamActivityProgressAPI.savePitch({
         team_id: team.id,
         activity_id: currentActivityId,
         session_stage_id: currentSessionStageId,
@@ -360,24 +390,13 @@ export function TabletFormularioPitch() {
       });
 
       const fieldsCompleted = [pitchIntroProblem, pitchSolution, pitchValue, pitchImpact, pitchClosing].filter(Boolean).length;
-      const newProgress = Math.floor((fieldsCompleted / 5) * 100);
-      setProgressPercentage(newProgress);
 
       if (fieldsCompleted === 5) {
         setHasSaved(true);
         if (showToast) toast.success('✓ Pitch guardado exitosamente');
       } else {
-        if (showToast) toast.success(`Pitch guardado (${newProgress}% completado)`);
+        if (showToast) toast.success(`Pitch guardado (${Math.floor((fieldsCompleted / 5) * 100)}% completado)`);
       }
-
-      // Actualizar valores guardados después de guardar
-      setLastSavedValues({
-        intro_problem: pitchIntroProblem,
-        solution: pitchSolution,
-        value: pitchValue,
-        impact: pitchImpact,
-        closing: pitchClosing,
-      });
     } catch (error: any) {
       console.error('Error saving pitch:', error);
       if (showToast) toast.error('Error al guardar: ' + (error.response?.data?.error || error.message || 'Error desconocido'));
@@ -391,15 +410,12 @@ export function TabletFormularioPitch() {
   };
 
   const handleFieldChange = (field: 'intro_problem' | 'solution' | 'value' | 'impact' | 'closing', value: string) => {
-    // No actualizar si estamos recibiendo datos del servidor
     if (isUpdatingFromServerRef.current) {
       return;
     }
 
-    setIsTyping(true);
     isTypingRef.current = true;
-    
-    // Actualizar el campo correspondiente
+
     if (field === 'intro_problem') {
       setPitchIntroProblem(value);
     } else if (field === 'solution') {
@@ -412,61 +428,38 @@ export function TabletFormularioPitch() {
       setPitchClosing(value);
     }
 
-    // Cancelar el guardado anterior si existe
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
     }
 
-    // Guardar automáticamente después de 2 segundos de inactividad
     saveTimeoutRef.current = setTimeout(() => {
-      setIsTyping(false);
       isTypingRef.current = false;
-      savePitch(false); // Guardar sin mostrar toast
+      savePitch(false);
     }, 2000);
   };
 
   const handleFieldFocus = (field: 'intro_problem' | 'solution' | 'value' | 'impact' | 'closing') => {
     setFocusedField(field);
     focusedFieldRef.current = field;
-    setIsTyping(true);
     isTypingRef.current = true;
   };
 
   const handleFieldBlur = () => {
-    // Guardar inmediatamente al perder el foco
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
     }
     savePitch(false);
 
-    // Esperar un poco antes de permitir actualizaciones del servidor
     setTimeout(() => {
       setFocusedField(null);
       focusedFieldRef.current = null;
-      setIsTyping(false);
       isTypingRef.current = false;
     }, 500);
   };
 
-  const getTeamColorHex = (color: string) => {
-    const colorMap: Record<string, string> = {
-      Verde: '#28a745',
-      Azul: '#007bff',
-      Rojo: '#dc3545',
-      Amarillo: '#ffc107',
-      Naranja: '#fd7e14',
-      Morado: '#6f42c1',
-      Rosa: '#e83e8c',
-      Cian: '#17a2b8',
-      Gris: '#6c757d',
-      Marrón: '#795548',
-    };
-    return colorMap[color] || '#667eea';
-  };
-
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#093c92] via-blue-600 to-[#f757ac]">
+      <div style={{ background: '#050818', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <Loader2 className="w-8 h-8 animate-spin text-white" />
       </div>
     );
@@ -474,279 +467,343 @@ export function TabletFormularioPitch() {
 
   if (!team) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#093c92] via-blue-600 to-[#f757ac]">
-        <div className="text-white text-center">
-          <p className="text-xl mb-4">No se encontró el equipo</p>
-          <Button onClick={() => navigate('/tablet/join')}>Volver</Button>
+      <div style={{ background: '#050818', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ color: '#fff', textAlign: 'center' }}>
+          <p style={{ marginBottom: 16, fontFamily: "'Exo 2', sans-serif" }}>No se encontró el equipo</p>
+          <button
+            onClick={() => navigate('/tablet/join')}
+            style={{ fontFamily: 'Orbitron, sans-serif', background: 'linear-gradient(135deg,#093c92,#c026d3)', color: '#fff', border: 'none', borderRadius: 12, padding: '12px 28px', cursor: 'pointer' }}
+          >
+            Volver
+          </button>
         </div>
       </div>
     );
   }
 
-  const fieldsCompleted = [pitchIntroProblem, pitchSolution, pitchValue, pitchImpact, pitchClosing].filter(Boolean).length;
+  const fieldsCompleted = [pitchIntroProblem, pitchSolution, pitchValue, pitchImpact, pitchClosing].filter(v => v.trim()).length;
   const isComplete = fieldsCompleted === 5;
+  const fieldValues: Record<string, string> = {
+    intro_problem: pitchIntroProblem,
+    solution: pitchSolution,
+    value: pitchValue,
+    impact: pitchImpact,
+    closing: pitchClosing,
+  };
 
   return (
-    <div className="relative min-h-screen overflow-hidden flex flex-col">
-      {/* Fondo animado igual que Panel */}
-      <div className="absolute inset-0 bg-gradient-to-br from-[#093c92] via-blue-600 to-[#f757ac]">
-        <motion.div
-          animate={{
-            backgroundPosition: ['0% 0%', '100% 100%'],
-          }}
-          transition={{
-            duration: 20,
-            repeat: Infinity,
-            repeatType: 'reverse',
-          }}
-          className="absolute inset-0 opacity-20"
-          style={{
-            backgroundImage: 'radial-gradient(circle, white 1px, transparent 1px)',
-            backgroundSize: '50px 50px',
-          }}
-        />
-        
-        {/* Efectos de partículas adicionales */}
-        <div className="absolute inset-0">
-          {[...Array(20)].map((_, i) => (
-            <motion.div
-              key={i}
-              className="absolute w-2 h-2 bg-white rounded-full opacity-30"
-              initial={{
-                x: Math.random() * (typeof window !== 'undefined' ? window.innerWidth : 1920),
-                y: Math.random() * (typeof window !== 'undefined' ? window.innerHeight : 1080),
-              }}
-              animate={{
-                y: [null, Math.random() * (typeof window !== 'undefined' ? window.innerHeight : 1080)],
-                opacity: [0.3, 0.6, 0.3],
-              }}
-              transition={{
-                duration: 3 + Math.random() * 2,
-                repeat: Infinity,
-                delay: Math.random() * 2,
-              }}
-            />
-          ))}
+    <div style={{ background: '#050818', minHeight: '100vh', fontFamily: "'Exo 2', sans-serif", position: 'relative' }}>
+      <style>{GALACTIC_CSS}</style>
+      <StarField />
+
+      {/* ── Sticky top bar ── */}
+      <div style={{
+        position: 'sticky', top: 0, zIndex: 80,
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12,
+        padding: '10px 20px',
+        background: 'linear-gradient(180deg,rgba(5,8,24,0.98) 0%,transparent 100%)',
+        backdropFilter: 'blur(8px)',
+      }}>
+        {/* Phase badge */}
+        <div style={{
+          fontFamily: 'Orbitron, sans-serif', fontSize: 10, fontWeight: 600, letterSpacing: 5,
+          color: 'rgba(255,255,255,0.4)', background: 'rgba(255,255,255,0.05)',
+          border: '1px solid rgba(255,255,255,0.09)', borderRadius: 50, padding: '6px 18px',
+          textTransform: 'uppercase',
+        }}>
+          Fase 4 · Pitch
+        </div>
+
+        {/* Pills + timer */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          {/* Persona pill */}
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 10,
+            padding: '6px 14px 6px 6px', borderRadius: 50,
+            border: '1.5px solid rgba(192,38,211,0.4)', background: 'rgba(192,38,211,0.1)',
+            backdropFilter: 'blur(16px)',
+          }}>
+            <div style={{
+              width: 32, height: 32, borderRadius: '50%', flexShrink: 0,
+              background: 'rgba(192,38,211,0.18)', border: '1.5px solid rgba(192,38,211,0.4)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16,
+            }}>👤</div>
+            <div>
+              <div style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 8, fontWeight: 700, letterSpacing: 2.5, color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase' }}>Persona</div>
+              <div style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 11, fontWeight: 700, color: '#fff' }}>{personaName ?? '—'}</div>
+            </div>
+          </div>
+
+          {/* Prototype pill */}
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 10,
+            padding: '6px 14px 6px 6px', borderRadius: 50,
+            border: '1.5px solid rgba(59,130,246,0.4)', background: 'rgba(9,60,146,0.15)',
+            backdropFilter: 'blur(16px)',
+          }}>
+            <div style={{
+              width: 32, height: 32, borderRadius: '50%', flexShrink: 0,
+              background: 'rgba(59,130,246,0.15)', border: '1.5px solid rgba(59,130,246,0.4)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16,
+            }}>🚀</div>
+            <div>
+              <div style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 8, fontWeight: 700, letterSpacing: 2.5, color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase' }}>Prototipo</div>
+              <div style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 11, fontWeight: 700, color: '#fff' }}>{prototypeName ?? '—'}</div>
+            </div>
+          </div>
+
+          {/* Timer */}
+          {timerRemaining !== '--:--' && (
+            <div style={{
+              display: 'flex', flexDirection: 'column', gap: 2,
+              padding: '6px 18px', borderRadius: 16,
+              background: 'rgba(192,38,211,0.06)', border: '1px solid rgba(192,38,211,0.25)',
+              backdropFilter: 'blur(12px)',
+            }}>
+              <div style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 8, fontWeight: 700, letterSpacing: 3, textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)' }}>TIEMPO</div>
+              <div style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 22, fontWeight: 900, letterSpacing: 3, color: '#fff', textShadow: '0 0 40px rgba(192,38,211,0.55)', lineHeight: 1 }}>{timerRemaining}</div>
+            </div>
+          )}
         </div>
       </div>
 
-      <div className="relative z-10 p-3 sm:p-4">
-        <div className="max-w-6xl mx-auto relative z-20">
-          {/* Header Mejorado */}
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-white/95 backdrop-blur-sm rounded-2xl sm:rounded-3xl shadow-2xl p-4 sm:p-6 mb-4 sm:mb-6 flex items-center justify-between flex-wrap gap-4"
-          >
-            <div className="flex items-center gap-3 sm:gap-4">
-              <motion.div
-                whileHover={{ scale: 1.1, rotate: 5 }}
-                whileTap={{ scale: 0.95 }}
-                className="w-12 h-12 sm:w-14 sm:h-14 rounded-full flex items-center justify-center text-white text-lg sm:text-xl font-bold shadow-lg"
-                style={{ backgroundColor: getTeamColorHex(team.color) }}
-              >
-                {team.color.charAt(0).toUpperCase()}
-              </motion.div>
-              <div>
-                <h3 className="text-lg sm:text-xl font-bold text-gray-800">{team.name}</h3>
-                <p className="text-xs sm:text-sm text-gray-600">Equipo {team.color}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              {team && (
-                <motion.button
-                  onClick={() => setShowUBotModal(true)}
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  className="bg-gradient-to-r from-pink-500 to-pink-600 text-white px-5 py-2.5 rounded-full font-semibold text-sm sm:text-base flex items-center gap-2 shadow-lg"
-                >
-                  <Bot className="w-4 h-4 sm:w-5 sm:h-5" />
-                  <span>U-Bot</span>
-                </motion.button>
-              )}
-              <motion.div
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                className="bg-gradient-to-r from-[#093c92] to-blue-700 text-white px-5 py-2.5 rounded-full font-semibold text-sm sm:text-base flex items-center gap-2 shadow-lg"
-              >
-                <Award className="w-4 h-4 sm:w-5 sm:h-5" /> {team.tokens_total || 0} Tokens
-              </motion.div>
-            </div>
-          </motion.div>
+      {/* ── Main content ── */}
+      <div style={{ position: 'relative', zIndex: 10, padding: '20px 20px 130px', maxWidth: 1140, margin: '0 auto' }}>
 
-          {/* Contenedor Principal Mejorado */}
-          <div className="relative">
-            {/* Temporizador en esquina superior derecha */}
-            {timerRemaining !== '--:--' && (
-              <div className="absolute top-0 right-0 bg-yellow-50 border-2 border-yellow-300 rounded-lg px-3 py-2 shadow-sm z-10" style={{ isolation: 'isolate' }}>
-                <div className="flex items-center gap-2">
-                  <Clock className="w-4 h-4 text-yellow-700" />
-                  <span className="text-yellow-800 font-semibold text-sm sm:text-base">
-                    <span className="font-bold">{timerRemaining}</span>
-                  </span>
-                </div>
-              </div>
-            )}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="bg-white rounded-xl shadow-xl p-4 sm:p-6 mb-3 sm:mb-4 relative pr-24 sm:pr-32"
-            >
-              {/* Título y Descripción */}
-              <div className="mb-4 sm:mb-5">
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-[#093c92] to-[#f757ac] rounded-lg flex items-center justify-center shadow-md">
-                    <FileText className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+        {/* Title */}
+        <div style={{ textAlign: 'center', marginBottom: 28 }}>
+          <h1 style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 'clamp(20px,3.2vw,30px)', fontWeight: 900, color: '#fff', letterSpacing: 2, textTransform: 'uppercase', textShadow: '0 0 50px rgba(192,38,211,0.5)', margin: 0 }}>
+            Construyan su Pitch
+          </h1>
+          <p style={{ fontFamily: "'Exo 2', sans-serif", fontSize: 14, fontWeight: 300, color: 'rgba(255,255,255,0.5)', marginTop: 8 }}>
+            Completen los 5 movimientos de su presentación
+          </p>
+        </div>
+
+        {/* ── Builder view ── */}
+        {view === 'builder' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+            {BOX_CONFIG.map((box) => {
+              const value = fieldValues[box.field] ?? '';
+              const isDone = !!value.trim();
+              const isFocused = focusedField === box.field;
+
+              return (
+                <div key={box.key} style={{
+                  display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '16px 20px',
+                  background: 'rgba(255,255,255,0.04)',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  borderLeft: `4px solid ${box.color}`,
+                  borderRadius: 22, backdropFilter: 'blur(16px)', padding: '20px 22px',
+                }}>
+                  {/* Number cell */}
+                  <div style={{
+                    width: 60, height: 60, borderRadius: 16, flexShrink: 0,
+                    background: 'rgba(255,255,255,0.04)', border: `1.5px solid ${box.color}`,
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2,
+                  }}>
+                    <span style={{ fontSize: 24 }}>{box.emoji}</span>
+                    <span style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 10, fontWeight: 900, letterSpacing: 2, color: box.color }}>{box.n}</span>
                   </div>
-                  <h1 className="text-xl sm:text-2xl font-bold text-[#093c92]">
-                    Formulario de Pitch
-                  </h1>
+
+                  {/* Head */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                    <div style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: 3, textTransform: 'uppercase', color: box.color }}>{box.tag}</div>
+                    <div style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 'clamp(15px,2vw,20px)', fontWeight: 900, color: '#fff', letterSpacing: 1 }}>{box.title}</div>
+                    <div style={{ fontFamily: "'Exo 2', sans-serif", fontSize: 13, fontWeight: 300, color: 'rgba(255,255,255,0.6)', lineHeight: 1.6 }}>
+                      {box.helper}
+                      <div style={{ fontStyle: 'italic', fontSize: 12, color: 'rgba(255,255,255,0.38)', marginTop: 4 }}>{box.example}</div>
+                    </div>
+                  </div>
+
+                  {/* Textarea + footer (span column 2) */}
+                  <div style={{ gridColumn: 2, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <textarea
+                      value={value}
+                      onChange={(e) => handleFieldChange(box.field, e.target.value)}
+                      onFocus={() => handleFieldFocus(box.field)}
+                      onBlur={handleFieldBlur}
+                      rows={4}
+                      placeholder={box.example}
+                      style={{
+                        width: '100%', minHeight: 90, boxSizing: 'border-box',
+                        background: 'rgba(0,0,0,0.25)', borderRadius: 14, color: '#fff',
+                        fontFamily: "'Exo 2', sans-serif", fontSize: 14, fontWeight: 400,
+                        padding: '12px 14px', lineHeight: 1.6, resize: 'vertical', outline: 'none',
+                        border: `1.5px solid ${isFocused ? box.color : 'rgba(255,255,255,0.12)'}`,
+                        boxShadow: isFocused ? `0 0 0 4px ${box.color}20` : 'none',
+                        transition: 'border-color 0.2s, box-shadow 0.2s',
+                      }}
+                    />
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'rgba(255,255,255,0.35)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <div style={{
+                          width: 7, height: 7, borderRadius: '50%',
+                          background: isDone ? '#10b981' : 'rgba(255,255,255,0.18)',
+                          boxShadow: isDone ? '0 0 10px rgba(16,185,129,0.6)' : 'none',
+                          transition: 'all 0.3s',
+                        }} />
+                        <span style={{ color: isDone ? '#10b981' : 'rgba(255,255,255,0.35)' }}>
+                          {isDone ? 'Completado' : 'Pendiente'}
+                        </span>
+                      </div>
+                      <span style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 10, letterSpacing: 1 }}>{value.length} car.</span>
+                    </div>
+                  </div>
                 </div>
-                <p className="text-gray-600 text-sm sm:text-base">
-                  Redacten el discurso que usarán para vender su proyecto.
-                </p>
-              </div>
+              );
+            })}
+          </div>
+        )}
 
-              {/* Barra de Progreso Mejorada */}
-              {progressPercentage > 0 && (
-              <div className="mb-3 sm:mb-4">
-                <div className="flex justify-between text-xs sm:text-sm text-gray-600 mb-1.5">
-                  <span className="font-semibold">Progreso</span>
-                  <span className="font-bold">{progressPercentage}%</span>
+        {/* ── Preview view ── */}
+        {view === 'preview' && (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20, maxWidth: 760, margin: '0 auto' }}>
+            <button
+              onClick={() => setView('builder')}
+              style={{
+                alignSelf: 'flex-start', display: 'inline-flex', gap: 6, fontSize: 12,
+                color: 'rgba(255,255,255,0.45)', background: 'none', border: 'none', cursor: 'pointer',
+                fontFamily: "'Exo 2', sans-serif",
+              }}
+            >
+              ← Editar
+            </button>
+
+            <div style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 10, fontWeight: 600, letterSpacing: 5, textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)', borderRadius: 50, padding: '6px 20px' }}>
+              Vista Previa
+            </div>
+
+            <h2 style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 'clamp(20px,3.2vw,28px)', fontWeight: 900, color: '#fff', letterSpacing: 2, textTransform: 'uppercase', textShadow: '0 0 50px rgba(192,38,211,0.5)', margin: 0 }}>
+              Su Pitch
+            </h2>
+
+            {/* Pitch card */}
+            <div style={{
+              width: '100%', background: 'linear-gradient(180deg,rgba(192,38,211,0.06),rgba(9,60,146,0.04))',
+              border: '1px solid rgba(255,255,255,0.12)', borderRadius: 26, backdropFilter: 'blur(20px)',
+              padding: '26px 28px', display: 'flex', flexDirection: 'column', gap: 18,
+              boxShadow: '0 30px 80px rgba(0,0,0,0.5), 0 0 80px rgba(192,38,211,0.12)',
+            }}>
+              {/* Product head */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, paddingBottom: 16, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                  <div style={{ width: 60, height: 60, borderRadius: 14, background: '#0a0e2a', border: '1px solid rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28, flexShrink: 0 }}>🚀</div>
+                  <div>
+                    <div style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 20, fontWeight: 900, color: '#fff', letterSpacing: 1.5 }}>{prototypeName ?? 'Su Prototipo'}</div>
+                    <div style={{ fontFamily: "'Exo 2', sans-serif", fontSize: 12, fontStyle: 'italic', color: 'rgba(255,255,255,0.55)', marginTop: 2 }}>Pitch de la Start-up</div>
+                  </div>
                 </div>
-                <div className="w-full bg-gray-200 rounded-full h-2.5">
-                  <div
-                    className="bg-green-500 h-2.5 rounded-full transition-all duration-300"
-                    style={{ width: `${progressPercentage}%` }}
-                  />
-                </div>
-              </div>
-              )}
-
-              {/* Formulario Mejorado */}
-              <div className="space-y-4 sm:space-y-5 pt-3 border-t border-gray-200">
-              {/* Problema */}
-              <div>
-                <label className="block text-base sm:text-lg font-semibold text-[#093c92] mb-2 flex items-center gap-2">
-                  <Target className="w-4 h-4 sm:w-5 sm:h-5" /> 1. El Dolor (Problema)
-                </label>
-                <textarea
-                  value={pitchIntroProblem}
-                  onChange={(e) => handleFieldChange('intro_problem', e.target.value)}
-                  onFocus={() => handleFieldFocus('intro_problem')}
-                  onBlur={handleFieldBlur}
-                  placeholder="Describe el problema que identificaste en la Etapa 2 (Empatía)..."
-                  rows={5}
-                  className="w-full text-sm sm:text-base border-2 border-gray-300 rounded-lg px-3 sm:px-4 py-2 sm:py-3 focus:outline-none focus:ring-2 focus:ring-[#093c92] focus:border-transparent resize-y"
-                />
+                {personaName && (
+                  <div style={{ display: 'inline-flex', gap: 8, alignItems: 'center', fontFamily: "'Exo 2', sans-serif", fontSize: 11, color: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 50, padding: '6px 14px' }}>
+                    👤 <span>Para {personaName}</span>
+                  </div>
+                )}
               </div>
 
-              {/* Solución */}
-              <div>
-                <label className="block text-base sm:text-lg font-semibold text-[#093c92] mb-2 flex items-center gap-2">
-                  <Lightbulb className="w-4 h-4 sm:w-5 sm:h-5" /> 2. El Rescate (Tu Solución)
-                </label>
-                <textarea
-                  value={pitchSolution}
-                  onChange={(e) => handleFieldChange('solution', e.target.value)}
-                  onFocus={() => handleFieldFocus('solution')}
-                  onBlur={handleFieldBlur}
-                  placeholder="Describe tu solución basándote en el prototipo que construiste en la Etapa 3 (Creatividad)..."
-                  rows={5}
-                  className="w-full text-sm sm:text-base border-2 border-gray-300 rounded-lg px-3 sm:px-4 py-2 sm:py-3 focus:outline-none focus:ring-2 focus:ring-[#093c92] focus:border-transparent resize-y"
-                />
-              </div>
+              {/* 5 sections */}
+              {BOX_CONFIG.map((box) => {
+                const text = fieldValues[box.field] ?? '';
+                return (
+                  <div key={box.key} style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
+                    <div style={{ width: 38, height: 38, borderRadius: 12, background: 'rgba(255,255,255,0.04)', border: `1.5px solid ${box.color}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>
+                      {box.emoji}
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 9, fontWeight: 700, letterSpacing: 3, textTransform: 'uppercase', color: box.color, marginBottom: 2 }}>{box.tag}</div>
+                      <div style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 13, fontWeight: 700, color: '#fff', letterSpacing: 0.5, marginBottom: 5 }}>{box.title}</div>
+                      <div style={{ fontFamily: "'Exo 2', sans-serif", fontSize: 14, fontWeight: 300, color: text ? 'rgba(255,255,255,0.78)' : 'rgba(255,255,255,0.3)', lineHeight: 1.7, fontStyle: text ? 'normal' : 'italic', whiteSpace: 'pre-wrap' }}>
+                        {text || 'Sin contenido'}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
 
-              {/* Valor */}
-              <div>
-                <label className="block text-base sm:text-lg font-semibold text-[#093c92] mb-2 flex items-center gap-2">
-                  <Coins className="w-4 h-4 sm:w-5 sm:h-5" /> 3. Diferencia (Valor)
-                </label>
-                <textarea
-                  value={pitchValue}
-                  onChange={(e) => handleFieldChange('value', e.target.value)}
-                  onFocus={() => handleFieldFocus('value')}
-                  onBlur={handleFieldBlur}
-                  placeholder="Explica el valor que aporta tu solución..."
-                  rows={5}
-                  className="w-full text-sm sm:text-base border-2 border-gray-300 rounded-lg px-3 sm:px-4 py-2 sm:py-3 focus:outline-none focus:ring-2 focus:ring-[#093c92] focus:border-transparent resize-y"
-                />
-              </div>
-
-              {/* Impacto */}
-              <div>
-                <label className="block text-base sm:text-lg font-semibold text-[#093c92] mb-2 flex items-center gap-2">
-                  <Target className="w-4 h-4 sm:w-5 sm:h-5" /> 4. El Futuro (Impacto)
-                </label>
-                <textarea
-                  value={pitchImpact}
-                  onChange={(e) => handleFieldChange('impact', e.target.value)}
-                  onFocus={() => handleFieldFocus('impact')}
-                  onBlur={handleFieldBlur}
-                  placeholder="Describe el impacto que tendrá tu solución..."
-                  rows={5}
-                  className="w-full text-sm sm:text-base border-2 border-gray-300 rounded-lg px-3 sm:px-4 py-2 sm:py-3 focus:outline-none focus:ring-2 focus:ring-[#093c92] focus:border-transparent resize-y"
-                />
-              </div>
-
-              {/* Cierre */}
-              <div>
-                <label className="block text-base sm:text-lg font-semibold text-[#093c92] mb-2 flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5" /> 5. Golpe Final (Cierre)
-                </label>
-                <textarea
-                  value={pitchClosing}
-                  onChange={(e) => handleFieldChange('closing', e.target.value)}
-                  onFocus={() => handleFieldFocus('closing')}
-                  onBlur={handleFieldBlur}
-                  placeholder="Concluye tu pitch de manera impactante..."
-                  rows={5}
-                  className="w-full text-sm sm:text-base border-2 border-gray-300 rounded-lg px-3 sm:px-4 py-2 sm:py-3 focus:outline-none focus:ring-2 focus:ring-[#093c92] focus:border-transparent resize-y"
-                />
-              </div>
-              </div>
-
-              {/* Save Button Mejorado */}
-              <div className="flex justify-center mt-4 sm:mt-5 pt-4 border-t border-gray-200">
-              <Button
+            {/* Action buttons */}
+            <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap', width: '100%' }}>
+              <button
+                onClick={() => setView('builder')}
+                style={{
+                  flex: 1, minWidth: 160, fontFamily: "'Exo 2', sans-serif", fontSize: 14, fontWeight: 600,
+                  color: 'rgba(255,255,255,0.7)', background: 'rgba(255,255,255,0.06)',
+                  border: '1.5px solid rgba(255,255,255,0.2)', borderRadius: 12, padding: '14px 24px',
+                  cursor: 'pointer',
+                }}
+              >
+                ← Cambiar algo
+              </button>
+              <button
                 onClick={handleSavePitch}
                 disabled={saving}
-                size="lg"
-                className="bg-green-600 hover:bg-green-700 text-white px-6 sm:px-8 py-4 sm:py-6 text-base sm:text-lg font-semibold w-full sm:w-auto"
+                style={{
+                  flex: 1, minWidth: 160, fontFamily: 'Orbitron, sans-serif', fontSize: 11, fontWeight: 700,
+                  letterSpacing: 3, textTransform: 'uppercase', color: '#fff',
+                  background: 'linear-gradient(135deg,#093c92,#c026d3)', border: 'none', borderRadius: 12,
+                  padding: '14px 24px', cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.6 : 1,
+                  boxShadow: '0 4px 22px rgba(192,38,211,0.3)',
+                }}
               >
-                {saving ? (
-                  <>
-                    <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 mr-2 animate-spin" />
-                    Guardando...
-                  </>
-                ) : (
-                  <>
-                    <Save className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
-                    [ GUARDAR GUION ]
-                  </>
-                )}
-              </Button>
-              </div>
+                {saving ? 'Guardando…' : 'Entregar pitch →'}
+              </button>
+            </div>
 
-              {/* Success Message Mejorado */}
-              {hasSaved && isComplete && (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="bg-green-50 border-2 border-green-400 rounded-lg p-3 sm:p-4 text-center mt-3 sm:mt-4"
-              >
-                <div className="flex items-center justify-center gap-2 text-green-800 font-semibold text-sm sm:text-base">
-                  <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5" />
-                  <p>✓ Pitch guardado exitosamente</p>
-                </div>
-              </motion.div>
+            {hasSaved && (
+              <div style={{ background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: 14, padding: '12px 24px', color: '#10b981', fontFamily: "'Exo 2', sans-serif", fontSize: 14, fontWeight: 600, textAlign: 'center' }}>
+                ✓ Pitch entregado exitosamente
+              </div>
             )}
-            </motion.div>
           </div>
-        </div>
+        )}
       </div>
 
-      {/* Modal de U-Bot */}
+      {/* ── Floating footer (builder only) ── */}
+      {view === 'builder' && (
+        <div style={{
+          position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 90,
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14,
+          padding: '12px 24px 16px',
+          background: 'linear-gradient(0deg,rgba(5,8,24,0.98) 0%,rgba(5,8,24,0.85) 60%,transparent 100%)',
+          pointerEvents: 'none',
+        }}>
+          {/* Progress dots */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, pointerEvents: 'all' }}>
+            {[pitchIntroProblem, pitchSolution, pitchValue, pitchImpact, pitchClosing].map((v, i) => (
+              <div key={i} style={{
+                width: 9, height: 9, borderRadius: '50%',
+                background: v.trim() ? '#10b981' : 'rgba(255,255,255,0.15)',
+                boxShadow: v.trim() ? '0 0 10px rgba(16,185,129,0.6)' : 'none',
+                transition: 'all 0.3s',
+              }} />
+            ))}
+            <span style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 10, fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', color: 'rgba(255,255,255,0.55)', marginLeft: 6 }}>
+              {fieldsCompleted}/5
+            </span>
+          </div>
+
+          {/* Submit button */}
+          <button
+            onClick={async () => { await savePitch(false); setView('preview'); }}
+            disabled={!isComplete || saving}
+            style={{
+              pointerEvents: 'all',
+              fontFamily: 'Orbitron, sans-serif', fontSize: 11, fontWeight: 700,
+              letterSpacing: 3, textTransform: 'uppercase', color: '#fff',
+              background: 'linear-gradient(135deg,#093c92,#c026d3)',
+              border: 'none', borderRadius: 12, padding: '13px 28px',
+              boxShadow: '0 4px 22px rgba(192,38,211,0.3)',
+              cursor: isComplete && !saving ? 'pointer' : 'not-allowed',
+              opacity: isComplete && !saving ? 1 : 0.4,
+              transition: 'opacity 0.2s',
+            }}
+          >
+            {saving ? 'Guardando…' : 'Ver pitch completo →'}
+          </button>
+        </div>
+      )}
+
+      {/* U-Bot Modal */}
       {team && (
         <UBotFormularioPitchModal
           isOpen={showUBotModal}
@@ -755,9 +812,6 @@ export function TabletFormularioPitch() {
           teamColor={team.color}
         />
       )}
-
-      {/* Música de fondo */}
     </div>
   );
 }
-

@@ -1,12 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { Users, Clock, Loader2, CheckCircle2, XCircle, ArrowRight, Code } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { EtapaIntroModal } from '@/components/EtapaIntroModal';
 import { sessionsAPI, teamsAPI, teamPersonalizationsAPI } from '@/services';
 import { toast } from 'sonner';
-import { isDevMode } from '@/utils/devMode';
 import { useGameStateRedirect } from '@/hooks/useGameStateRedirect';
+import { GalacticPage } from '@/components/GalacticPage';
+import { TimerBlock } from '@/components/TimerBlock';
 
 interface Student {
   id: number;
@@ -284,10 +284,9 @@ export function ProfesorPersonalizacion() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-[#F8F7F4]">
-        <Loader2 className="w-8 h-8 animate-spin text-slate-800" />
-        <p className="text-slate-500 font-medium mt-4">Preparando la Etapa 1...</p>
-      </div>
+      <GalacticPage className="items-center justify-center">
+        <Loader2 className="w-12 h-12 animate-spin" style={{ color: '#c026d3' }} />
+      </GalacticPage>
     );
   }
 
@@ -330,222 +329,84 @@ export function ProfesorPersonalizacion() {
     );
   }
 
-  // Calcular estadísticas
-  const completedCount = teams.filter(team => {
-    const pers = personalizations[team.id];
-    return pers && pers.team_name && pers.team_name.trim() !== '' && pers.team_members_know_each_other !== null;
-  }).length;
-
-  const inProgressCount = teams.length - completedCount;
-  const allCompleted = completedCount === teams.length && teams.length > 0;
+  const submittedCount = Object.values(personalizations).filter(p => p.team_name).length;
 
   return (
-    <div
-      className="min-h-screen bg-[#F8F7F4]"
-      style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}
-    >
-      {/* Header exterior — fondo claro */}
-      <header className="px-6 pt-6 pb-4 flex justify-between items-center">
+    <GalacticPage>
+      {/* Top bar */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 22 }}>
         <div>
-          <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400 mb-0.5">
-            Etapa 1 — Trabajo en Equipo
-          </p>
-          <h1
-            className="text-xl sm:text-2xl font-black text-slate-900"
-            style={{ fontFamily: 'Unbounded, sans-serif' }}
-          >
-            Personalización
-          </h1>
+          <div className="galactic-label" style={{ fontSize: 12, marginBottom: 4 }}>Control de Misión · Etapa 1</div>
+          <div style={{ fontFamily: "'Orbitron',sans-serif", fontSize: 30, fontWeight: 700, color: '#fff', textShadow: '0 0 24px rgba(192,38,211,0.5)' }}>
+            Trabajo en Equipo
+          </div>
         </div>
-        <img
-          src="/images/UDD-negro.png"
-          alt="Logo UDD"
-          className="h-8 sm:h-10 w-auto object-contain opacity-80"
-        />
-      </header>
-
-      {/* Contenedor central oscuro — panel de misión */}
-      <div className="px-4 sm:px-6 pb-8">
-        <motion.div
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.35 }}
-          className="bg-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl border border-slate-700/50 max-w-6xl mx-auto"
-        >
-          {/* Barra superior del panel */}
-          <div className="flex flex-wrap items-center justify-between gap-3 mb-7">
-            {/* Lado izquierdo: sala + píldoras de estado */}
-            <div className="flex flex-wrap items-center gap-2.5">
-              <span className="text-sm text-slate-400">
-                Sala:{' '}
-                <span className="font-bold text-white tracking-wide">
-                  {gameSession.room_code}
-                </span>
-              </span>
-
-              {timerRemaining !== '--:--' && (
-                <div className="inline-flex items-center gap-1.5 bg-white/5 border border-white/10 text-slate-300 px-3 py-1.5 rounded-full text-xs font-medium">
-                  <Clock className="w-3.5 h-3.5" />
-                  {timerRemaining}
-                </div>
-              )}
-
-              <div className="inline-flex items-center gap-1.5 bg-blue-400/10 border border-blue-400/20 text-blue-300 px-4 py-1.5 rounded-full text-xs font-medium">
-                <Users className="w-3.5 h-3.5" />
-                {teams.length} Equipos
-              </div>
-
-              <div className="inline-flex items-center gap-1.5 bg-emerald-400/10 border border-emerald-400/20 text-emerald-300 px-4 py-1.5 rounded-full text-xs font-medium">
-                <CheckCircle2 className="w-3.5 h-3.5" />
-                {completedCount} Completados
-              </div>
-
-              <div className="inline-flex items-center gap-1.5 bg-amber-400/10 border border-amber-400/20 text-amber-300 px-4 py-1.5 rounded-full text-xs font-medium">
-                <Clock className="w-3.5 h-3.5" />
-                {inProgressCount} En Progreso
-              </div>
-            </div>
-
-            {/* Lado derecho: acciones */}
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => navigate('/profesor/panel')}
-                className="bg-white/5 text-slate-300 border border-slate-600/50 hover:bg-white/10 rounded-xl px-4 py-2 text-sm font-medium transition-colors"
-              >
-                Volver al Panel
-              </button>
-
-              {isDevMode() && (
-                <button
-                  onClick={() => handleNextActivity(true)}
-                  disabled={advancing}
-                  title="Modo Dev: Avanzar sin requisitos"
-                  className="inline-flex items-center gap-1.5 bg-white/5 text-slate-300 border border-slate-600/50 hover:bg-white/10 rounded-xl px-4 py-2 text-sm font-medium transition-colors disabled:opacity-40"
-                >
-                  <Code className="w-4 h-4" />
-                  Dev
-                </button>
-              )}
-
-              {allCompleted && (
-                <button
-                  onClick={() => handleNextActivity(false)}
-                  disabled={advancing}
-                  className="inline-flex items-center gap-2 bg-slate-900 text-white hover:bg-slate-950 rounded-xl px-7 py-2.5 text-sm font-semibold transition-colors shadow-lg border border-slate-950 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {advancing ? (
-                    <><Loader2 className="w-4 h-4 animate-spin" />Avanzando...</>
-                  ) : (
-                    <>Continuar Fase <ArrowRight className="w-4 h-4" /></>
-                  )}
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* Separador */}
-          <div className="border-t border-slate-700/60 mb-6" />
-
-          {/* Grid de tarjetas de equipos */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-            {teams.length === 0 ? (
-              <div className="col-span-full text-center py-12">
-                <p className="text-slate-400 text-sm">Cargando estado de los equipos...</p>
-              </div>
-            ) : (
-              teams.map((team, index) => {
-                const pers = personalizations[team.id];
-                const isCompleted = pers && pers.team_name && pers.team_name.trim() !== '' && pers.team_members_know_each_other !== null;
-                const status = isCompleted ? 'completed' : (pers ? 'in-progress' : 'pending');
-                const statusText = isCompleted ? 'Completado' : (pers ? 'En Progreso' : 'Pendiente');
-                const teamColor = getTeamColorHex(team.color);
-
-                return (
-                  <motion.div
-                    key={team.id}
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.05 }}
-                    className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm"
-                  >
-                    {/* Cabecera del equipo */}
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div
-                          className="w-10 h-10 rounded-xl flex items-center justify-center text-white text-sm font-bold flex-shrink-0"
-                          style={{ backgroundColor: teamColor }}
-                        >
-                          {team.color.charAt(0).toUpperCase()}
-                        </div>
-                        <div className="min-w-0">
-                          <h3 className="text-sm font-semibold text-slate-900 truncate">{team.name}</h3>
-                          <p className="text-xs text-slate-400">Equipo {team.color}</p>
-                        </div>
-                      </div>
-                      {isCompleted && (
-                        <CheckCircle2 className="w-5 h-5 text-emerald-500 flex-shrink-0" />
-                      )}
-                    </div>
-
-                    {/* Detalles de personalización */}
-                    {pers ? (
-                      <div className="space-y-2">
-                        <div className="bg-slate-50 rounded-xl p-3 border border-slate-100">
-                          <p className="text-xs text-slate-400 mb-0.5">Nombre del equipo</p>
-                          <p className="text-sm font-semibold text-slate-900">
-                            {pers.team_name || (
-                              <span className="text-slate-400 italic font-normal">No definido</span>
-                            )}
-                          </p>
-                        </div>
-                        <div className="bg-slate-50 rounded-xl p-3 border border-slate-100">
-                          <p className="text-xs text-slate-400 mb-0.5">¿Se conocen?</p>
-                          {pers.team_members_know_each_other !== null ? (
-                            <div className="flex items-center gap-1.5">
-                              {pers.team_members_know_each_other ? (
-                                <>
-                                  <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                                  <span className="text-sm font-medium text-emerald-700">Sí, ya se conocen</span>
-                                </>
-                              ) : (
-                                <>
-                                  <XCircle className="w-4 h-4 text-rose-500" />
-                                  <span className="text-sm font-medium text-rose-700">No se conocen</span>
-                                </>
-                              )}
-                            </div>
-                          ) : (
-                            <span className="text-xs text-slate-400 italic">No indicado</span>
-                          )}
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="bg-slate-50 rounded-xl p-3 border border-dashed border-slate-200 text-center">
-                        <p className="text-xs text-slate-400 italic">Aún no ha iniciado</p>
-                      </div>
-                    )}
-
-                    {/* Badge de estado */}
-                    <div className="mt-3 flex justify-center">
-                      <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${
-                        status === 'completed'
-                          ? 'bg-emerald-100 text-emerald-700'
-                          : status === 'in-progress'
-                          ? 'bg-amber-100 text-amber-700'
-                          : 'bg-slate-100 text-slate-500'
-                      }`}>
-                        {statusText}
-                      </span>
-                    </div>
-                  </motion.div>
-                );
-              })
-            )}
-          </div>
-        </motion.div>
+        <div className="galactic-badge">Actividad 1</div>
       </div>
 
-      {/* Modal de Introducción de Etapa */}
+      {/* Big timer */}
+      <TimerBlock timerRemaining={timerRemaining} activityName="Personalización de Equipo" />
+
+      {/* Stats row */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 14, marginTop: 22 }}>
+        {[
+          { label: 'Equipos Listos', value: `${submittedCount} / ${teams.length}`, sub: 'han enviado nombre' },
+          { label: 'Actividad Actual', value: 'Personalización', sub: 'nombre + relación del equipo', valueStyle: { fontSize: 20, color: '#d946ef' } },
+          { label: 'Código de Sala', value: gameSession?.room_code ?? '--', sub: 'para unirse', valueStyle: { fontSize: 28, letterSpacing: 4 } },
+        ].map(card => (
+          <div key={card.label} className="glass-card" style={{ padding: '20px 24px' }}>
+            <div className="galactic-label" style={{ fontSize: 12, marginBottom: 10 }}>{card.label}</div>
+            <div style={{ fontFamily: "'Orbitron',sans-serif", fontSize: 36, fontWeight: 700, color: '#fff', ...card.valueStyle }}>
+              {card.value}
+            </div>
+            <div style={{ fontFamily: "'Exo 2',sans-serif", fontSize: 15, fontWeight: 500, color: 'rgba(255,255,255,0.65)', marginTop: 6 }}>
+              {card.sub}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Team status grid */}
+      <div style={{ marginTop: 22 }}>
+        <div className="galactic-label" style={{ marginBottom: 12 }}>Estado de los equipos</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(220px,1fr))', gap: 12 }}>
+          {teams.map(team => {
+            const p = personalizations[team.id];
+            const done = Boolean(p?.team_name);
+            return (
+              <div key={team.id} className="glass-card" style={{ padding: '16px 18px', borderColor: done ? 'rgba(16,185,129,0.55)' : 'rgba(255,255,255,0.12)', background: done ? 'rgba(16,185,129,0.08)' : 'rgba(255,255,255,0.05)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
+                  <div style={{ width: 14, height: 14, borderRadius: '50%', background: team.color, flexShrink: 0 }} />
+                  <span style={{ fontFamily: "'Exo 2',sans-serif", fontSize: 18, fontWeight: 700, color: '#fff', flex: 1 }}>
+                    {p?.team_name || team.name}
+                  </span>
+                  <span style={{ fontSize: 18 }}>{done ? '✅' : ''}</span>
+                </div>
+                <div style={{ height: 5, background: 'rgba(255,255,255,0.1)', borderRadius: 3, overflow: 'hidden', marginBottom: 8 }}>
+                  <div style={{ height: '100%', width: done ? '100%' : '0%', background: 'linear-gradient(90deg,#7c3aed,#c026d3)', borderRadius: 3, transition: 'width 0.5s' }} />
+                </div>
+                <div style={{ fontFamily: "'Exo 2',sans-serif", fontSize: 15, fontWeight: 600, color: done ? '#34d399' : 'rgba(255,255,255,0.5)' }}>
+                  {done
+                    ? `Entregado · ${p.team_members_know_each_other ? 'Ya se conocen' : 'No se conocen'}`
+                    : 'Esperando...'}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Actions */}
+      <div style={{ display: 'flex', justifyContent: 'center', gap: 16, marginTop: 24, paddingBottom: 8 }}>
+        <button className="btn-galactic-secondary" onClick={() => navigate('/profesor/panel')}>
+          Cancelar Sesión
+        </button>
+        <button className="btn-galactic-primary" onClick={() => handleNextActivity(false)} disabled={advancing}>
+          {advancing ? 'Avanzando...' : 'Avanzar Actividad ▶'}
+        </button>
+      </div>
+
+      {/* Existing intro modal — preserve exactly */}
       <EtapaIntroModal
         etapaNumero={1}
         isOpen={showEtapaIntro}
@@ -556,7 +417,7 @@ export function ProfesorPersonalizacion() {
           }
         }}
       />
-    </div>
+    </GalacticPage>
   );
 }
 

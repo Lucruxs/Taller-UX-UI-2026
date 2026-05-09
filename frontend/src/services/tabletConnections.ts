@@ -30,4 +30,12 @@ export const tabletConnectionsAPI = {
     );
     return response.data;
   },
+
+  updateTabletScreen: async (connectionId: string | number, screen: string) => {
+    const response = await api.patch(
+      `/sessions/tablet-connections/${connectionId}/update_screen/`,
+      { screen }
+    );
+    return response.data;
+  },
 };
