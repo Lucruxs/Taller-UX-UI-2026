@@ -77,6 +77,15 @@ export function TabletInstructivo() {
         if (gameData.current_stage_number) {
           const normalizedName = (gameData.current_activity_name || '').toLowerCase();
           if (normalizedName.includes('personaliz')) {
+            // Check if team already submitted personalization — if so, skip it
+            try {
+              const persList = await teamPersonalizationsAPI.list({ team: statusData.team.id });
+              const persResults = Array.isArray(persList) ? persList : [persList];
+              if (persResults.length > 0) {
+                await redirectPresentacion();
+                return;
+              }
+            } catch {}
             window.location.href = `/tablet/loading?redirect=/tablet/etapa1/personalizacion&connection_id=${connId}`;
             return;
           } else if (normalizedName.includes('presentaci')) {
@@ -103,16 +112,27 @@ export function TabletInstructivo() {
             const stageChanged = updatedSession.current_stage_number !== initialStageNumber;
             
             if (activityChanged || stageChanged) {
-              // Limpiar intervalos
+              const newActivityName = (updatedSession.current_activity_name || '').toLowerCase();
+              const newStageNumber = updatedSession.current_stage_number;
+
+              // If backend advanced to Personalización, check if team already submitted it
+              if (newStageNumber === 1 && newActivityName.includes('personaliz')) {
+                try {
+                  const persList = await teamPersonalizationsAPI.list({ team: statusData.team.id });
+                  const persResults = Array.isArray(persList) ? persList : [persList];
+                  if (persResults.length > 0) {
+                    // Already done — keep interval running, wait for Presentación
+                    return;
+                  }
+                } catch {}
+              }
+
+              // Clear interval (only reached when we will redirect)
               if (activityCheckIntervalRef.current) {
                 clearInterval(activityCheckIntervalRef.current);
                 activityCheckIntervalRef.current = null;
               }
-              
-              // Redirigir según la nueva actividad
-              const newActivityName = (updatedSession.current_activity_name || '').toLowerCase();
-              const newStageNumber = updatedSession.current_stage_number;
-              
+
               if (newStageNumber === 1) {
                 if (newActivityName.includes('personaliz')) {
                   window.location.href = `/tablet/loading?redirect=/tablet/etapa1/personalizacion&connection_id=${connId}`;

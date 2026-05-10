@@ -38,7 +38,7 @@ export function TabletPresentacion() {
   const timeExpiredRef = useRef<boolean>(false);
   
   // Estados para las partes de presentación
-  const [currentPart, setCurrentPart] = useState<'presentation' | 'chaos' | 'general_knowledge'>('presentation');
+  const [currentPart, setCurrentPart] = useState<'presentation' | 'chaos' | 'general_knowledge'>('chaos');
   const [chaosQuestion, setChaosQuestion] = useState<string | null>(null);
   // currentQuestionId se mantiene para consistencia con el backend aunque no se lee directamente
   // Se usa setCurrentQuestionId para guardar el ID en el progreso
@@ -358,14 +358,14 @@ export function TabletPresentacion() {
               }
             }
           } else {
-            // Parte 1 no completada, quedarse en parte 1
-            console.log('[checkExistingProgress] ⏸️ Parte 1 no completada, quedándose en parte 1');
-            setCurrentPart('presentation');
+            // Parte 1 no completada, ir directamente a chaos
+            console.log('[checkExistingProgress] ⏸️ Parte 1 no completada, avanzando a chaos directamente');
+            setCurrentPart('chaos');
           }
         } else {
-          // No hay progreso, empezar en parte 1
-          console.log('[checkExistingProgress] 🆕 No hay progreso, empezando en parte 1');
-          setCurrentPart('presentation');
+          // No hay progreso, empezar en chaos directamente
+          console.log('[checkExistingProgress] 🆕 No hay progreso, empezando en chaos directamente');
+          setCurrentPart('chaos');
           setProgressData({
             part1_completed: false,
             chaos_completed: false,
@@ -580,10 +580,8 @@ export function TabletPresentacion() {
         },
       };
       
-      // Asegurar que part1_completed se mantenga si ya estaba
-      if (responseData.part1_completed) {
-        newResponseData.part1_completed = true;
-      }
+      // Chaos is the first part for "No nos conocemos" teams — always mark part1 done
+      newResponseData.part1_completed = true;
       
       if (progress) {
         // Actualizar progreso existente
@@ -1138,6 +1136,7 @@ export function TabletPresentacion() {
                         await teamActivityProgressAPI.update(progress.id, {
                           response_data: {
                             ...responseData,
+                            part1_completed: true,
                             chaos: {
                               ...chaosData,
                               completed: true,

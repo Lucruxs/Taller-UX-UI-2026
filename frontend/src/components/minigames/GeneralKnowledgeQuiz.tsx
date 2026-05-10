@@ -329,7 +329,7 @@ export function GeneralKnowledgeQuiz({ questions, onComplete, initialIndex = 0, 
             onClick={handlePrevious}
             disabled={currentIndex === 0}
             variant="outline"
-            className="flex-1"
+            className="flex-1 text-gray-700 bg-white hover:bg-gray-50"
           >
             ← Anterior
           </Button>

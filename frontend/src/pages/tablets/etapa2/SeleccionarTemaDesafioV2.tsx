@@ -177,10 +177,7 @@ export function TabletSeleccionarTemaDesafioV2() {
       if (isInitialLoad && !topicsLoadedRef.current) {
         topicsLoadedRef.current = true;
         try {
-          const facultyId = (gameData as any).faculty || gameData.course;
-          const topicList = await challengesAPI.getTopics(
-            facultyId ? { faculty: facultyId } : {}
-          );
+          const topicList = await challengesAPI.getTopics({});
           const arr = Array.isArray(topicList) ? topicList : (topicList?.results || []);
           setTopics(arr);
         } catch (err) {

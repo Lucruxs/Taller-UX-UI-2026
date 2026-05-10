@@ -188,9 +188,9 @@ export function TabletMinijuego() {
 
       // Verificar progreso existente PRIMERO para restaurar el estado correcto (tiene más prioridad)
       // No verificar en cada polling para evitar sobrescribir el estado actual
-      if (gameData.current_activity && currentSessionStageId && statusData.team.id && !progressCheckedRef.current) {
+      if (gameData.current_activity && gameData.current_session_stage && statusData.team.id && !progressCheckedRef.current) {
         console.log('[loadGameState] ✅ Primera vez, llamando a checkExistingProgress para restaurar estado...');
-        await checkExistingProgress(statusData.team.id, gameData.current_activity, currentSessionStageId);
+        await checkExistingProgress(statusData.team.id, gameData.current_activity, gameData.current_session_stage);
         progressCheckedRef.current = true;
         // Pequeño delay para asegurar que el estado se haya actualizado
         await new Promise(resolve => setTimeout(resolve, 50));
@@ -508,6 +508,8 @@ export function TabletMinijuego() {
           if (generalKnowledgeData.questions_data && generalKnowledgeData.questions_data.length > 0) {
             setGeneralKnowledgeQuestions(generalKnowledgeData.questions_data);
           }
+          setLoading(false);
+          minigameDataLoadedRef.current = true;
           return;
         }
         
@@ -1258,12 +1260,12 @@ export function TabletMinijuego() {
   }
 
   const handleWordFound = async (word: string, cells: Array<{ row: number; col: number }>) => {
+    const newFoundWords = [...foundWords, word];
+    setFoundWords(newFoundWords);
+
     if (!team || !currentActivityId || !currentSessionStageId) {
       return;
     }
-
-    const newFoundWords = [...foundWords, word];
-    setFoundWords(newFoundWords);
 
     // Guardar progreso
     try {

@@ -19,38 +19,48 @@ class GameSessionSerializer(serializers.ModelSerializer):
     current_stage_name = serializers.SerializerMethodField()
     current_stage_number = serializers.SerializerMethodField()
     current_activity_name = serializers.SerializerMethodField()
+    current_session_stage = serializers.SerializerMethodField()
     teams_count = serializers.SerializerMethodField()
-    
+
     def get_current_stage_name(self, obj):
         try:
             return obj.current_stage.name if obj.current_stage else None
         except Exception:
             return None
-    
+
     def get_current_stage_number(self, obj):
         try:
             return obj.current_stage.number if obj.current_stage else None
         except Exception:
             return None
-    
+
     def get_current_activity_name(self, obj):
         try:
             return obj.current_activity.name if obj.current_activity else None
         except Exception:
             return None
-    
+
+    def get_current_session_stage(self, obj):
+        try:
+            if not obj.current_stage:
+                return None
+            session_stage = SessionStage.objects.filter(game_session=obj, stage=obj.current_stage).first()
+            return session_stage.id if session_stage else None
+        except Exception:
+            return None
+
     class Meta:
         model = GameSession
         fields = [
             'id', 'professor', 'professor_name', 'course', 'course_name',
             'room_code', 'qr_code', 'status', 'started_at', 'ended_at',
             'current_stage', 'current_stage_name', 'current_stage_number',
-            'current_activity', 'current_activity_name',
+            'current_activity', 'current_activity_name', 'current_session_stage',
             'cancellation_reason', 'cancellation_reason_other',
             'show_results_stage',
             'teams_count', 'created_at', 'updated_at'
         ]
-        read_only_fields = ['id', 'professor_name', 'course_name', 'qr_code', 'current_stage_name', 'current_stage_number', 'current_activity_name', 'teams_count', 'created_at', 'updated_at', 'show_results_stage']
+        read_only_fields = ['id', 'professor_name', 'course_name', 'qr_code', 'current_stage_name', 'current_stage_number', 'current_activity_name', 'current_session_stage', 'teams_count', 'created_at', 'updated_at', 'show_results_stage']
     
     def get_teams_count(self, obj):
         # Optimizar: usar prefetch_related si está disponible, sino usar count()

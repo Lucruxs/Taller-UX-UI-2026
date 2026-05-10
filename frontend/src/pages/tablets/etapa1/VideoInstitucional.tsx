@@ -17,7 +17,6 @@ export function TabletVideoInstitucional() {
   const videoUrls = [
     'https://www.youtube.com/embed/jNQXAC9IVRw', // Video educativo sobre emprendimiento
     'https://www.youtube.com/embed/9bZkp7q19f0', // Video sobre innovación
-    'https://www.youtube.com/embed/dQw4w9WgXcQ', // Video motivacional
   ];
   
   // Seleccionar un video aleatorio al cargar

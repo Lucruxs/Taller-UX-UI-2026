@@ -117,12 +117,12 @@ export function AnagramGame({
             }
           }}
           placeholder="Escribe la palabra correcta aquí..."
-          className={`h-14 sm:h-16 text-center text-lg sm:text-xl ${
+          className={`h-14 sm:h-16 text-center text-lg sm:text-xl text-gray-900 ${
             isCorrect === true
               ? 'border-green-500 bg-green-50'
               : isCorrect === false
               ? 'border-red-500 bg-red-50'
-              : ''
+              : 'bg-white'
           }`}
           disabled={submitting || isCorrect === true}
           autoComplete="off"

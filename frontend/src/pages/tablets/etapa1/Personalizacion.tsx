@@ -131,6 +131,8 @@ export function TabletPersonalizacion() {
             } catch (error) {
               window.location.href = `/tablet/etapa1/presentacion/?connection_id=${connId}`;
             }
+          } else if (currentActivityName.includes('instructivo') || currentActivityName.includes('instrucciones') || currentActivityName.includes('video')) {
+            window.location.href = `/tablet/etapa1/instructivo/?connection_id=${connId}`;
           } else {
             window.location.href = `/tablet/lobby?connection_id=${connId}`;
           }
@@ -180,7 +182,7 @@ export function TabletPersonalizacion() {
             const updatedLobbyData = await sessionsAPI.getLobby(statusData.game_session.id);
             const updatedSession = updatedLobbyData.game_session;
 
-            const resultsUrl = getResultsRedirectUrl(updatedSession, String(connectionId));
+            const resultsUrl = getResultsRedirectUrl(updatedSession, connId);
             if (resultsUrl) { window.location.href = resultsUrl; return; }
 
             // Verificar si cambió la actividad o el nombre de la actividad
@@ -240,6 +242,9 @@ export function TabletPersonalizacion() {
                 return;
               } else if (newActivityName.includes('personaliz')) {
                 // Ya estamos en personalización, no redirigir
+                return;
+              } else if (newActivityName.includes('instructivo') || newActivityName.includes('instrucciones') || newActivityName.includes('video')) {
+                window.location.href = `/tablet/etapa1/instructivo/?connection_id=${connId}`;
                 return;
               } else {
                 window.location.href = `/tablet/lobby?connection_id=${connId}`;
