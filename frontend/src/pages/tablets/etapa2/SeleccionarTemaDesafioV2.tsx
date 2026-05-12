@@ -76,8 +76,11 @@ export function TabletSeleccionarTemaDesafioV2() {
   const [topics, setTopics] = useState<Topic[]>([]);
   const [challenges, setChallenges] = useState<Challenge[]>([]);
   const [selectedTopic, setSelectedTopic] = useState<Topic | null>(null);
+  const [selectedChallenge, setSelectedChallenge] = useState<Challenge | null>(null);
   const [expandedChallengeId, setExpandedChallengeId] = useState<number | null>(null);
+  const [challengeToConfirm, setChallengeToConfirm] = useState<Challenge | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [waitingForProfessor, setWaitingForProfessor] = useState(false);
   const [timerRemaining, setTimerRemaining] = useState('--:--');
 
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -162,6 +165,12 @@ export function TabletSeleccionarTemaDesafioV2() {
 
       setCurrentActivityId(gameData.current_activity ?? null);
 
+      // Reset waiting state if activity changed
+      if (waitingForProfessor && (!activityName.includes('desafio') && !activityName.includes('tema') && !activityName.includes('challenge'))) {
+        setWaitingForProfessor(false);
+        setSelectedChallenge(null);
+      }
+
       let stageId = sessionStageIdRef.current;
       if (!stageId && gameData.current_activity) {
         const stages = await sessionsAPI.getSessionStages(statusData.game_session.id);
@@ -239,22 +248,33 @@ export function TabletSeleccionarTemaDesafioV2() {
     }
   };
 
-  const handleChallengeClick = async (ch: Challenge) => {
-    if (submitting || !team || !currentActivityId || !sessionStageId || !selectedTopic) return;
+  const openChallengeConfirmation = (ch: Challenge) => {
+    setChallengeToConfirm(ch);
+  };
+
+  const handleChallengeConfirm = async () => {
+    if (submitting || !challengeToConfirm || !team || !currentActivityId || !sessionStageId || !selectedTopic) return;
     setSubmitting(true);
     try {
       const fd = new FormData();
       fd.append('team', String(team.id));
       fd.append('activity', String(currentActivityId));
       fd.append('session_stage', String(sessionStageId));
-      fd.append('challenge', String(ch.id));
+      fd.append('challenge', String(challengeToConfirm.id));
       fd.append('topic', String(selectedTopic.id));
       await teamActivityProgressAPI.selectChallenge(fd);
-      window.location.href = `/tablet/etapa2/bubble-map/?connection_id=${connectionId}`;
+      setSelectedChallenge(challengeToConfirm);
+      setWaitingForProfessor(true);
+      setChallengeToConfirm(null);
+      setSubmitting(false);
     } catch {
       toast.error('Error al seleccionar el desafío');
       setSubmitting(false);
     }
+  };
+
+  const cancelChallengeSelection = () => {
+    setChallengeToConfirm(null);
   };
 
   // ─── Loading state ─────────────────────────────────────────────────────────
@@ -270,6 +290,170 @@ export function TabletSeleccionarTemaDesafioV2() {
           <div style={{ textAlign: 'center', color: '#fff', fontFamily: "'Orbitron', sans-serif" }}>
             <div style={{ fontSize: 40, marginBottom: 16 }}>🚀</div>
             <div style={{ fontSize: 14, letterSpacing: 3, opacity: 0.6 }}>CARGANDO...</div>
+          </div>
+        </div>
+      </>
+    );
+  }
+
+  // ─── Waiting for professor state ───────────────────────────────────────────
+
+  if (waitingForProfessor && selectedChallenge && selectedTopic) {
+    return (
+      <>
+        <StarField />
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 10,
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+          padding: '28px 24px', overflowY: 'auto', fontFamily: "'Exo 2', sans-serif",
+        }}>
+
+          {/* Timer pill */}
+          <div style={{
+            position: 'fixed', top: 16, right: 16, zIndex: 50,
+            display: 'inline-flex', alignItems: 'center', gap: 7,
+            fontFamily: "'Orbitron', sans-serif", fontSize: 16, fontWeight: 700, color: '#fff',
+            padding: '8px 18px', borderRadius: 50,
+            background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)',
+            backdropFilter: 'blur(12px)', whiteSpace: 'nowrap',
+          }}>
+            ⏱ {timerRemaining}
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', maxWidth: 700 }}>
+            <div style={{
+              fontFamily: "'Exo 2', sans-serif", fontSize: 10, fontWeight: 600,
+              letterSpacing: 5, textTransform: 'uppercase' as const, color: 'rgba(255,255,255,0.4)',
+              background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)',
+              borderRadius: 50, padding: '6px 18px', marginBottom: 22,
+            }}>Fase 2 · Empatía</div>
+
+            <div style={{
+              fontSize: 80, marginBottom: 20, opacity: 0.8,
+              filter: 'drop-shadow(0 0 30px rgba(192,38,211,0.5))',
+            }}>⏳</div>
+
+            <h1 style={{
+              fontFamily: "'Orbitron', sans-serif",
+              fontSize: 'clamp(32px, 5vw, 48px)', fontWeight: 900, color: '#fff',
+              letterSpacing: 2, textTransform: 'uppercase' as const, textAlign: 'center',
+              marginBottom: 16, textShadow: '0 0 50px rgba(192,38,211,0.5)',
+            }}>
+              Esperando al profesor
+            </h1>
+
+            <div style={{
+              fontSize: 16, color: 'rgba(255,255,255,0.8)', textAlign: 'center',
+              lineHeight: 1.6, marginBottom: 32, maxWidth: 500,
+            }}>
+              Has seleccionado exitosamente el desafío. El profesor avanzará cuando todos los equipos estén listos.
+            </div>
+
+            {/* Selected challenge summary */}
+            <div style={{
+              background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
+              borderRadius: 16, padding: 24, width: '100%', maxWidth: 500,
+              backdropFilter: 'blur(12px)',
+            }}>
+              <div style={{
+                fontFamily: "'Orbitron', sans-serif", fontSize: 14, fontWeight: 700,
+                color: '#fff', marginBottom: 12, textAlign: 'center',
+              }}>
+                Tu selección
+              </div>
+
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 16, marginBottom: 16,
+              }}>
+                <div style={{
+                  width: 60, height: 60, borderRadius: 12,
+                  background: `linear-gradient(135deg, ${TOPIC_VARIANTS[getTopicVariant(selectedTopic.name)].color}, rgba(255,255,255,0.1))`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 24,
+                }}>
+                  {getTopicIcon(selectedTopic)}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{
+                    fontFamily: "'Orbitron', sans-serif", fontSize: 16, fontWeight: 700,
+                    color: '#fff', marginBottom: 4,
+                  }}>
+                    {selectedTopic.name}
+                  </div>
+                  <div style={{
+                    fontSize: 14, color: 'rgba(255,255,255,0.6)',
+                  }}>
+                    Tema seleccionado
+                  </div>
+                </div>
+              </div>
+
+              <div style={{
+                borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: 16,
+              }}>
+                <div style={{
+                  fontFamily: "'Orbitron', sans-serif", fontSize: 14, fontWeight: 700,
+                  color: TOPIC_VARIANTS[getTopicVariant(selectedTopic.name)].color,
+                  marginBottom: 8,
+                }}>
+                  {selectedChallenge.title}
+                </div>
+                <div style={{
+                  fontSize: 13, color: 'rgba(255,255,255,0.7)', lineHeight: 1.5,
+                  marginBottom: 12,
+                }}>
+                  {selectedChallenge.description}
+                </div>
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: 8,
+                }}>
+                  <div style={{
+                    width: 32, height: 32, borderRadius: '50%',
+                    background: 'rgba(255,255,255,0.1)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 14,
+                  }}>
+                    👤
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{
+                      fontSize: 12, fontWeight: 600, color: '#fff',
+                    }}>
+                      {selectedChallenge.persona_name || 'Persona'}
+                    </div>
+                    <div style={{
+                      fontSize: 11, color: 'rgba(255,255,255,0.5)',
+                    }}>
+                      {selectedChallenge.persona_age ? `${selectedChallenge.persona_age} años` : ''}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Next activity preview */}
+            <div style={{
+              marginTop: 32, textAlign: 'center',
+            }}>
+              <div style={{
+                fontSize: 14, color: 'rgba(255,255,255,0.6)', marginBottom: 8,
+              }}>
+                Próxima actividad
+              </div>
+              <div style={{
+                fontFamily: "'Orbitron', sans-serif", fontSize: 18, fontWeight: 700,
+                color: '#fff', marginBottom: 12,
+              }}>
+                Mapa de Empatía (Bubble Map)
+              </div>
+              <div style={{
+                fontSize: 14, color: 'rgba(255,255,255,0.7)', lineHeight: 1.6,
+                maxWidth: 500,
+              }}>
+                Crearás un mapa visual que representa las necesidades, emociones y contexto de {selectedChallenge.persona_name || 'la persona'}.
+                Usarás burbujas conectadas para mostrar cómo se relacionan diferentes aspectos de su situación.
+              </div>
+            </div>
           </div>
         </div>
       </>
@@ -408,13 +592,20 @@ export function TabletSeleccionarTemaDesafioV2() {
               <div style={{ width: 70 }} />
             </div>
 
+            <div style={{
+              fontSize: 13, color: 'rgba(255,255,255,0.45)', textAlign: 'center',
+              marginBottom: 16, maxWidth: 760,
+            }}>
+              Toca la tarjeta para ver el contexto completo. Usa el botón de abajo para confirmar el desafío.
+            </div>
+
             {/* Challenge cards */}
             <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' as const, justifyContent: 'center', width: '100%' }}>
               {challenges.map(ch => (
                 <div
                   key={ch.id}
                   role="button"
-                  onClick={() => handleChallengeClick(ch)}
+                  onClick={() => setExpandedChallengeId(expandedChallengeId === ch.id ? null : ch.id)}
                   style={{
                     flex: 1, minWidth: 260, maxWidth: 300,
                     borderRadius: 20, background: 'rgba(255,255,255,0.04)',
@@ -496,13 +687,25 @@ export function TabletSeleccionarTemaDesafioV2() {
 
                   {/* Footer */}
                   <div style={{ padding: '14px 20px', borderTop: '1px solid rgba(255,255,255,0.07)', textAlign: 'right' }}>
-                    <span style={{
-                      fontFamily: "'Orbitron', sans-serif", fontSize: 10, fontWeight: 700,
-                      letterSpacing: 2, textTransform: 'uppercase' as const,
-                      color: catVariant.color, opacity: submitting ? 0.4 : 0.7,
-                    }}>
-                      {submitting ? 'Guardando...' : 'Elegir este desafío →'}
-                    </span>
+                    <button
+                      type="button"
+                      onClick={e => {
+                        e.stopPropagation();
+                        openChallengeConfirmation(ch);
+                      }}
+                      disabled={submitting}
+                      style={{
+                        width: '100%', padding: '12px 14px',
+                        borderRadius: 14, border: 'none',
+                        background: `linear-gradient(135deg, ${catVariant.color}, rgba(255,255,255,0.12))`,
+                        color: '#fff', fontFamily: "'Orbitron', sans-serif",
+                        fontSize: 11, fontWeight: 700, letterSpacing: 1.5,
+                        cursor: submitting ? 'not-allowed' : 'pointer',
+                        transition: 'transform 0.2s, opacity 0.2s',
+                      }}
+                    >
+                      {submitting ? 'Guardando...' : 'Seleccionar desafío'}
+                    </button>
                   </div>
                 </div>
               ))}
@@ -510,6 +713,71 @@ export function TabletSeleccionarTemaDesafioV2() {
           </div>
         )}
       </div>
+
+      {challengeToConfirm && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 60, background: 'rgba(0,0,0,0.75)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24,
+        }}>
+          <div style={{
+            width: '100%', maxWidth: 520, borderRadius: 28,
+            background: 'rgba(12,12,26,0.96)', border: '1px solid rgba(255,255,255,0.08)',
+            boxShadow: '0 24px 80px rgba(0,0,0,0.45)', padding: 28,
+          }}>
+            <div style={{
+              fontFamily: "'Orbitron', sans-serif", fontSize: 18, fontWeight: 900,
+              color: '#fff', marginBottom: 14, textAlign: 'center',
+            }}>
+              ¿Estás seguro?
+            </div>
+            <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.8)', lineHeight: 1.7, marginBottom: 24, textAlign: 'center' }}>
+              Selecciona este desafío para que tu equipo avance al siguiente paso cuando el profesor dé la señal.
+              Luego trabajarás en el Bubble Map con la información de la persona elegida.
+            </div>
+            <div style={{
+              background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)',
+              borderRadius: 20, padding: 18, marginBottom: 24,
+            }}>
+              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', marginBottom: 10 }}>Desafío seleccionado</div>
+              <div style={{
+                fontFamily: "'Orbitron', sans-serif", fontSize: 16, fontWeight: 700,
+                color: '#fff', marginBottom: 8,
+              }}>{challengeToConfirm.title}</div>
+              <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.75)', lineHeight: 1.6 }}>
+                {challengeToConfirm.description}
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' as const, justifyContent: 'center' }}>
+              <button
+                type="button"
+                onClick={cancelChallengeSelection}
+                style={{
+                  flex: '1 1 140px', minWidth: 140,
+                  padding: '14px 16px', borderRadius: 14, border: '1px solid rgba(255,255,255,0.16)',
+                  background: 'rgba(255,255,255,0.06)', color: '#fff', fontWeight: 700,
+                  cursor: 'pointer', fontFamily: "'Orbitron', sans-serif",
+                }}
+              >
+                Volver
+              </button>
+              <button
+                type="button"
+                onClick={handleChallengeConfirm}
+                disabled={submitting}
+                style={{
+                  flex: '1 1 140px', minWidth: 140,
+                  padding: '14px 16px', borderRadius: 14, border: 'none',
+                  background: 'linear-gradient(135deg, #c026d3, #7c3aed)',
+                  color: '#fff', fontWeight: 700, cursor: submitting ? 'not-allowed' : 'pointer',
+                  fontFamily: "'Orbitron', sans-serif",
+                }}
+              >
+                {submitting ? 'Guardando...' : 'Confirmar selección'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

@@ -831,7 +831,9 @@ export function TabletPresentacion() {
       setProgressData(prev => prev ? { ...prev, general_knowledge_completed: true, general_knowledge_answers_count: 5, general_knowledge_correct_count: data.correct_count || 0 } : { part1_completed: false, chaos_completed: false, general_knowledge_completed: true, chaos_questions_answered: 0, general_knowledge_answers_count: 5, general_knowledge_correct_count: data.correct_count || 0 });
       
       // El backend retorna tokens_earned, correct_count, etc.
-      toast.success(`¡Completado! Ganaste ${data.tokens_earned || 0} tokens (${data.correct_count || 0}/5 correctas)`);
+      // Usar tokens_earned del response_data que es el total acumulado, no solo los nuevos
+      const totalTokensEarned = data.response_data?.tokens_earned || data.tokens_earned || 0;
+      toast.success(`¡Completado! Ganaste ${totalTokensEarned} tokens (${data.correct_count || 0}/5 correctas)`);
       
       // NO hacer consultas adicionales ni actualizaciones manuales
       // El backend ya actualizó todo (progreso, tokens, estado)

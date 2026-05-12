@@ -22,6 +22,7 @@ import { isDevMode } from '@/utils/devMode';
 import { sessionsAPI, teamsAPI, teamPersonalizationsAPI, teamActivityProgressAPI } from '@/services';
 import { toast } from 'sonner';
 import { useGameStateRedirect } from '@/hooks/useGameStateRedirect';
+import { AdvanceConfirmModal } from '@/components/AdvanceConfirmModal';
 import { GalacticPage } from '@/components/GalacticPage';
 import { TimerBlock } from '@/components/TimerBlock';
 
@@ -105,6 +106,7 @@ export function ProfesorPresentacion() {
   const [timerRemaining, setTimerRemaining] = useState<string>('--:--');
   const [advancing, setAdvancing] = useState(false);
   const [showEtapaIntro, setShowEtapaIntro] = useState(false);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -295,12 +297,8 @@ export function ProfesorPresentacion() {
     }
   };
 
-  const handleNextActivity = async (skipRequirements: boolean = false) => {
+  const doAdvance = async () => {
     if (!sessionId) return;
-    if (!skipRequirements && !confirm('¿Avanzar a la siguiente actividad? Todos los equipos deben haber completado la actividad actual.')) {
-      return;
-    }
-
     setAdvancing(true);
     try {
       const data = await sessionsAPI.nextActivity(sessionId);
@@ -322,6 +320,15 @@ export function ProfesorPresentacion() {
     } finally {
       setAdvancing(false);
     }
+  };
+
+  const handleNextActivity = (skipRequirements: boolean = false) => {
+    if (!sessionId) return;
+    if (!skipRequirements) {
+      setShowConfirmModal(true);
+      return;
+    }
+    doAdvance();
   };
 
   const getTeamColorHex = (color: string) => {
@@ -482,6 +489,16 @@ export function ProfesorPresentacion() {
             localStorage.setItem(`etapa_intro_${sessionId}_1`, 'true');
           }
         }}
+      />
+      <AdvanceConfirmModal
+        isOpen={showConfirmModal}
+        onClose={() => setShowConfirmModal(false)}
+        onConfirm={() => {
+          setShowConfirmModal(false);
+          doAdvance();
+        }}
+        title="Avanzar Actividad"
+        message="Todos los equipos deben haber completado la actividad actual antes de continuar."
       />
     </GalacticPage>
   );

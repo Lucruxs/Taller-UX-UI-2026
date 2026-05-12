@@ -1513,7 +1513,7 @@ export function TabletMinijuego() {
       console.log(`[handleGeneralKnowledgeComplete] Respuesta del backend: tokens_earned=${data.tokens_earned || 0}, correct_count=${data.correct_count || 0}, total_questions=${data.total_questions || 0}`);
       
       // El backend retorna tokens_earned, correct_count, etc.
-      const tokensEarned = data.tokens_earned || 0;
+      const tokensEarned = data.response_data?.tokens_earned || data.tokens_earned || 0;
       const correctCount = data.correct_count || 0;
       const totalQuestions = data.total_questions || 5;
       

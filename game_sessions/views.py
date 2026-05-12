@@ -1803,14 +1803,20 @@ class GameSessionViewSet(viewsets.ModelViewSet):
             # Si no hay started_at, usar el started_at de la sesión
             if not earliest_start and game_session.started_at:
                 earliest_start = game_session.started_at
-            
+
+            remaining_seconds = None
+            now = timezone.now()
+            if timer_duration is not None and earliest_start:
+                elapsed_seconds = int((now - earliest_start).total_seconds())
+                remaining_seconds = max(0, timer_duration - elapsed_seconds)
+
             return Response({
                 'activity_id': activity.id,
                 'activity_name': activity.name,
                 'timer_duration': timer_duration,  # En segundos (puede ser None)
                 'started_at': earliest_start.isoformat() if earliest_start else None,
-                'current_time': timezone.now().isoformat(),
-                'remaining_seconds': None  # Se calculará en el cliente
+                'current_time': now.isoformat(),
+                'remaining_seconds': remaining_seconds
             })
         except Exception as e:
             import traceback

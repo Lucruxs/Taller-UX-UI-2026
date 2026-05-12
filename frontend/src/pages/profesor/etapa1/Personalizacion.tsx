@@ -5,6 +5,7 @@ import { EtapaIntroModal } from '@/components/EtapaIntroModal';
 import { sessionsAPI, teamsAPI, teamPersonalizationsAPI } from '@/services';
 import { toast } from 'sonner';
 import { useGameStateRedirect } from '@/hooks/useGameStateRedirect';
+import { AdvanceConfirmModal } from '@/components/AdvanceConfirmModal';
 import { GalacticPage } from '@/components/GalacticPage';
 import { TimerBlock } from '@/components/TimerBlock';
 
@@ -51,6 +52,7 @@ export function ProfesorPersonalizacion() {
   const [advancing, setAdvancing] = useState(false);
   const [timeExpired, setTimeExpired] = useState(false);
   const [showEtapaIntro, setShowEtapaIntro] = useState(false);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -228,13 +230,8 @@ export function ProfesorPersonalizacion() {
     }
   };
 
-  const handleNextActivity = async (skipRequirements: boolean = false) => {
+  const doAdvance = async () => {
     if (!sessionId) return;
-
-    if (!skipRequirements && !confirm('¿Avanzar a la siguiente actividad? Todos los equipos deben haber completado la actividad actual.')) {
-      return;
-    }
-
     setAdvancing(true);
 
     try {
@@ -264,6 +261,15 @@ export function ProfesorPersonalizacion() {
       toast.error(error.response?.data?.error || 'Error al avanzar a la siguiente actividad');
       setAdvancing(false);
     }
+  };
+
+  const handleNextActivity = (skipRequirements: boolean = false) => {
+    if (!sessionId) return;
+    if (!skipRequirements) {
+      setShowConfirmModal(true);
+      return;
+    }
+    doAdvance();
   };
 
   const getTeamColorHex = (color: string) => {
@@ -332,7 +338,8 @@ export function ProfesorPersonalizacion() {
   const submittedCount = Object.values(personalizations).filter(p => p.team_name).length;
 
   return (
-    <GalacticPage>
+    <>
+      <GalacticPage>
       {/* Top bar */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 22 }}>
         <div>
@@ -417,7 +424,19 @@ export function ProfesorPersonalizacion() {
           }
         }}
       />
+      <AdvanceConfirmModal
+        isOpen={showConfirmModal}
+        onClose={() => setShowConfirmModal(false)}
+        onConfirm={() => {
+          setShowConfirmModal(false);
+          doAdvance();
+        }}
+        title="Avanzar Actividad"
+        message="Todos los equipos deben haber completado la actividad actual antes de continuar."
+      />
     </GalacticPage>
+    </>
+
   );
 }
 

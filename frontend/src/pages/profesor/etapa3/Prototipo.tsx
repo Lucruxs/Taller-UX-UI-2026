@@ -6,6 +6,7 @@ import { isDevMode } from '@/utils/devMode';
 import { sessionsAPI, challengesAPI, teamActivityProgressAPI, teamPersonalizationsAPI } from '@/services';
 import { toast } from 'sonner';
 import { useGameStateRedirect } from '@/hooks/useGameStateRedirect';
+import { AdvanceConfirmModal } from '@/components/AdvanceConfirmModal';
 import { GalacticPage } from '@/components/GalacticPage';
 import { TimerBlock } from '@/components/TimerBlock';
 
@@ -49,6 +50,7 @@ export function ProfesorPrototipo() {
   const [hasError, setHasError] = useState(false);
   const [timerRemaining, setTimerRemaining] = useState<string>('--:--');
   const [showEtapaIntro, setShowEtapaIntro] = useState(false);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [personalizations, setPersonalizations] = useState<Record<number, { team_name?: string }>>({});
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -282,12 +284,8 @@ export function ProfesorPrototipo() {
     }
   };
 
-  const handleNextActivity = async (skipRequirements: boolean = false) => {
+  const doAdvance = async () => {
     if (!sessionId) return;
-
-    if (!skipRequirements && !confirm('¿Avanzar a la siguiente actividad? Todos los equipos deben haber completado la actividad actual.')) {
-      return;
-    }
 
     setAdvancing(true);
     try {
@@ -303,6 +301,17 @@ export function ProfesorPrototipo() {
       toast.error('Error al avanzar: ' + (error.response?.data?.error || error.message || 'Error desconocido'));
       setAdvancing(false);
     }
+  };
+
+  const handleNextActivity = (skipRequirements: boolean = false) => {
+    if (!sessionId) return;
+
+    if (!skipRequirements) {
+      setShowConfirmModal(true);
+      return;
+    }
+
+    doAdvance();
   };
 
   const getTeamColorHex = (color: string) => {
@@ -523,6 +532,17 @@ export function ProfesorPrototipo() {
           {advancing ? 'Avanzando...' : 'Continuar Misión ▶'}
         </button>
       </div>
+
+      <AdvanceConfirmModal
+        isOpen={showConfirmModal}
+        onClose={() => setShowConfirmModal(false)}
+        onConfirm={() => {
+          setShowConfirmModal(false);
+          doAdvance();
+        }}
+        title="Avanzar Actividad"
+        message="Todos los equipos deben haber completado la actividad actual antes de continuar."
+      />
 
       <EtapaIntroModal
         etapaNumero={3}

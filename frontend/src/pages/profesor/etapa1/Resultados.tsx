@@ -4,6 +4,7 @@ import { Loader2 } from 'lucide-react';
 import { Confetti } from '@/components/Confetti';
 import { CancelSessionModal } from '@/components/CancelSessionModal';
 import { PodiumScreen } from '@/components/PodiumScreen';
+import { AdvanceConfirmModal } from '@/components/AdvanceConfirmModal';
 import { GalacticPage } from '@/components/GalacticPage';
 import { sessionsAPI } from '@/services';
 import { toast } from 'sonner';
@@ -65,6 +66,7 @@ export function ProfesorResultadosEtapa1() {
   const [loading, setLoading] = useState(true);
   const [advancing, setAdvancing] = useState(false);
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [syncStatus, setSyncStatus] = useState<Record<number, boolean>>({});
   const showResultsCalledRef = useRef(false);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -142,7 +144,11 @@ export function ProfesorResultadosEtapa1() {
       return;
     }
 
-    if (!confirm('¿Avanzar a la siguiente etapa? Esto iniciará la siguiente etapa del juego.')) return;
+    setShowConfirmModal(true);
+  };
+
+  const doAdvance = async () => {
+    if (!sessionId || !results) return;
 
     setAdvancing(true);
     try {
@@ -234,6 +240,16 @@ export function ProfesorResultadosEtapa1() {
         currentStage={gameSession?.current_stage_name}
         currentActivity={gameSession?.current_activity_name}
         roomCode={gameSession?.room_code}
+      />
+      <AdvanceConfirmModal
+        isOpen={showConfirmModal}
+        onClose={() => setShowConfirmModal(false)}
+        onConfirm={() => {
+          setShowConfirmModal(false);
+          doAdvance();
+        }}
+        title="Avanzar Etapa"
+        message="Esto iniciará la siguiente etapa del juego para todos los equipos."
       />
     </>
   );
