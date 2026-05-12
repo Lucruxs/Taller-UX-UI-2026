@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Fase 3 · Prototipo</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Exo+2:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{width:100%;height:100%;overflow:hidden;background:#050818;font-family:'Exo 2',sans-serif;}
+#starCanvas{position:fixed;inset:0;z-index:0;pointer-events:none;}
+
+/* ── SCREENS ── */
+.screen{position:fixed;inset:0;z-index:10;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:28px 24px;opacity:0;pointer-events:none;transition:opacity 0.45s ease;overflow-y:auto;}
+.screen.active{opacity:1;pointer-events:all;}
+
+/* ── BUTTONS ── */
+.btn-primary{font-family:'Orbitron',sans-serif;font-size:11px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:#fff;background:linear-gradient(135deg,#093c92,#c026d3);border:none;border-radius:12px;padding:14px 32px;cursor:pointer;transition:all 0.2s;box-shadow:0 4px 22px rgba(192,38,211,0.3);}
+.btn-primary:hover:not(:disabled){filter:brightness(1.14);transform:translateY(-2px);}
+.btn-primary:disabled{opacity:0.4;cursor:not-allowed;filter:saturate(0.5);}
+.btn-ghost{font-family:'Exo 2',sans-serif;font-size:13px;font-weight:600;color:rgba(255,255,255,0.55);background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);border-radius:12px;padding:12px 22px;cursor:pointer;transition:all 0.2s;}
+.btn-ghost:hover{background:rgba(255,255,255,0.09);color:#fff;}
+
+/* ── TIMER ── */
+.timer-pill{display:inline-flex;align-items:center;gap:7px;font-family:'Orbitron',sans-serif;font-size:18px;font-weight:700;color:#fff;padding:8px 20px;border-radius:50px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);backdrop-filter:blur(12px);transition:color 0.4s,border-color 0.4s,background 0.4s;white-space:nowrap;}
+.timer-pill.warn{color:#f97316;border-color:rgba(249,115,22,0.4);animation:tpulse 1s ease-in-out infinite;}
+.timer-pill.danger{color:#ef4444;border-color:rgba(239,68,68,0.5);animation:tpulse 0.28s ease-in-out infinite;}
+@keyframes tpulse{0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,0);}50%{box-shadow:0 0 0 6px rgba(239,68,68,0.2);}}
+
+/* ── SETTINGS ── */
+#settingsBtn{position:fixed;top:18px;left:18px;z-index:300;width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.12);display:flex;align-items:center;justify-content:center;cursor:pointer;color:rgba(255,255,255,0.5);font-size:17px;transition:all 0.2s;}
+#settingsBtn:hover{background:rgba(255,255,255,0.13);color:#fff;}
+#settingsPanel{position:fixed;top:66px;left:18px;z-index:300;width:275px;background:rgba(5,8,24,0.9);border:1px solid rgba(255,255,255,0.11);border-radius:16px;backdrop-filter:blur(24px);padding:20px;opacity:0;pointer-events:none;transform:translateY(-8px) scale(0.97);transition:all 0.22s;}
+#settingsPanel.open{opacity:1;pointer-events:all;transform:none;}
+.set-title{font-family:'Orbitron',sans-serif;font-size:10px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:rgba(255,255,255,0.4);margin-bottom:14px;}
+.set-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+.set-lbl{font-family:'Exo 2',sans-serif;font-size:12px;color:rgba(255,255,255,0.6);}
+.set-inp{width:78px;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.14);border-radius:8px;color:#fff;font-family:'Orbitron',sans-serif;font-size:12px;font-weight:700;padding:5px 8px;text-align:center;}
+.set-inp:focus{outline:none;border-color:#c026d3;}
+.set-inp.text{width:160px;text-align:left;font-family:'Exo 2',sans-serif;}
+
+/* ══ COMMON BADGES / TITLES ══ */
+.phase-badge{font-family:'Exo 2',sans-serif;font-size:10px;font-weight:600;letter-spacing:5px;text-transform:uppercase;color:rgba(255,255,255,0.4);background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.09);border-radius:50px;padding:6px 18px;margin-bottom:18px;}
+.phase-title{font-family:'Orbitron',sans-serif;font-size:clamp(28px,5vw,52px);font-weight:900;color:#fff;letter-spacing:2px;text-transform:uppercase;text-align:center;margin-bottom:10px;text-shadow:0 0 50px rgba(192,38,211,0.5);}
+.phase-sub{font-family:'Exo 2',sans-serif;font-size:clamp(13px,1.7vw,15px);font-weight:300;color:rgba(255,255,255,0.5);line-height:1.9;text-align:center;margin-bottom:32px;max-width:560px;}
+
+/* ══════════════
+   INTRO SCREEN
+══════════════ */
+#screen-intro{gap:0;}
+.lego-stack{display:flex;flex-direction:column;align-items:center;margin-bottom:18px;perspective:600px;}
+.brick{width:120px;height:36px;border-radius:5px;position:relative;box-shadow:inset 0 -5px 0 rgba(0,0,0,0.25),0 4px 14px rgba(0,0,0,0.4);margin-top:-4px;}
+.brick:first-child{margin-top:0;}
+.brick::before,.brick::after{content:'';position:absolute;top:-6px;width:18px;height:11px;border-radius:50%;background:inherit;box-shadow:inset 0 -3px 0 rgba(0,0,0,0.25);}
+.brick::before{left:22px;}
+.brick::after{right:22px;}
+.brick.b1{background:#c026d3;animation:floatB 3s ease-in-out infinite;}
+.brick.b2{background:#093c92;animation:floatB 3s ease-in-out infinite 0.4s;width:100px;}
+.brick.b3{background:#f59e0b;animation:floatB 3s ease-in-out infinite 0.8s;width:140px;}
+@keyframes floatB{0%,100%{transform:translateY(0);}50%{transform:translateY(-3px);}}
+
+.intro-card{background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:22px;backdrop-filter:blur(16px);padding:28px 30px;max-width:560px;width:100%;margin-top:8px;}
+.intro-steps{display:flex;flex-direction:column;gap:14px;}
+.istep{display:flex;align-items:flex-start;gap:14px;}
+.istep-num{flex-shrink:0;width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#093c92,#c026d3);display:flex;align-items:center;justify-content:center;font-family:'Orbitron',sans-serif;font-size:13px;font-weight:900;color:#fff;}
+.istep-text{flex:1;font-family:'Exo 2',sans-serif;font-size:14px;font-weight:300;color:rgba(255,255,255,0.78);line-height:1.65;padding-top:5px;}
+.istep-text b{font-weight:600;color:#fff;}
+
+.intro-cta{display:flex;gap:12px;align-items:center;margin-top:28px;}
+
+/* ══════════════
+   BIG TIMER (used in upload screen)
+══════════════ */
+.big-timer{font-family:'Orbitron',sans-serif;font-size:clamp(38px,6vw,64px);font-weight:900;color:#fff;letter-spacing:3px;text-shadow:0 0 60px rgba(192,38,211,0.55);transition:color 0.3s;line-height:1;}
+.big-timer.warn{color:#f97316;text-shadow:0 0 60px rgba(249,115,22,0.55);}
+.big-timer.danger{color:#ef4444;text-shadow:0 0 60px rgba(239,68,68,0.65);animation:tpulse2 0.6s ease-in-out infinite;}
+@keyframes tpulse2{0%,100%{transform:scale(1);}50%{transform:scale(1.04);}}
+.timer-block{display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 28px;border-radius:18px;background:rgba(192,38,211,0.06);border:1px solid rgba(192,38,211,0.25);backdrop-filter:blur(12px);}
+.timer-block .tb-label{font-family:'Orbitron',sans-serif;font-size:9px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:rgba(255,255,255,0.4);}
+
+/* Persona reminder pill (floating, visible always while building) */
+.persona-reminder{
+  position:fixed;top:18px;left:50%;transform:translateX(-50%);z-index:60;
+  display:flex;align-items:center;gap:12px;
+  padding:10px 18px 10px 10px;
+  background:rgba(192,38,211,0.12);
+  border:1.5px solid rgba(192,38,211,0.45);
+  border-radius:50px;backdrop-filter:blur(16px);
+  box-shadow:0 0 30px rgba(192,38,211,0.25);
+  cursor:pointer;
+  transition:all 0.2s;
+  max-width:calc(100vw - 36px);
+}
+.persona-reminder:hover{background:rgba(192,38,211,0.18);box-shadow:0 0 40px rgba(192,38,211,0.4);}
+.persona-reminder.open{border-radius:22px 22px 22px 22px;}
+.pr-label{font-family:'Orbitron',sans-serif;font-size:8px;font-weight:700;letter-spacing:2.5px;text-transform:uppercase;color:rgba(255,255,255,0.55);line-height:1;margin-bottom:3px;}
+.pr-name-row{display:flex;align-items:center;gap:6px;}
+.pr-name{font-family:'Orbitron',sans-serif;font-size:13px;font-weight:700;color:#fff;letter-spacing:0.5px;}
+.pr-chev{font-size:10px;color:rgba(255,255,255,0.55);transition:transform 0.22s;}
+.persona-reminder.open .pr-chev{transform:rotate(180deg);}
+.pr-avatar{width:42px;height:42px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:22px;background:rgba(192,38,211,0.25);border:2px solid rgba(192,38,211,0.6);flex-shrink:0;}
+.pr-info{line-height:1.1;text-align:left;}
+.pr-helper{font-family:'Exo 2',sans-serif;font-size:9px;font-weight:500;color:rgba(255,255,255,0.45);margin-top:1px;letter-spacing:0.3px;}
+
+/* Persona dropdown panel */
+.persona-panel{
+  position:fixed;top:80px;left:50%;transform:translateX(-50%) translateY(-8px);
+  z-index:55;width:min(440px,calc(100vw - 36px));
+  background:rgba(5,8,24,0.94);border:1px solid rgba(192,38,211,0.35);
+  border-radius:20px;backdrop-filter:blur(28px);
+  padding:24px 26px;
+  opacity:0;pointer-events:none;
+  transition:all 0.25s cubic-bezier(0.22,1,0.36,1);
+  box-shadow:0 20px 60px rgba(0,0,0,0.5),0 0 60px rgba(192,38,211,0.2);
+}
+.persona-panel.open{opacity:1;pointer-events:all;transform:translateX(-50%) translateY(0);}
+.pp-head{display:flex;align-items:center;gap:14px;padding-bottom:16px;border-bottom:1px solid rgba(255,255,255,0.08);margin-bottom:16px;}
+.pp-avatar{width:54px;height:54px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:28px;background:rgba(192,38,211,0.2);border:2px solid rgba(192,38,211,0.5);flex-shrink:0;}
+.pp-id{flex:1;}
+.pp-name{font-family:'Orbitron',sans-serif;font-size:15px;font-weight:700;color:#fff;letter-spacing:0.5px;margin-bottom:3px;}
+.pp-meta{font-family:'Exo 2',sans-serif;font-size:11px;color:rgba(255,255,255,0.5);}
+.pp-section{font-family:'Orbitron',sans-serif;font-size:9px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:rgba(192,38,211,0.85);margin-bottom:8px;}
+.pp-title{font-family:'Orbitron',sans-serif;font-size:13px;font-weight:700;color:#fff;letter-spacing:0.5px;margin-bottom:10px;line-height:1.4;}
+.pp-context{font-family:'Exo 2',sans-serif;font-size:13px;font-weight:300;color:rgba(255,255,255,0.7);line-height:1.75;}
+.pp-tip{margin-top:16px;padding:10px 12px;background:rgba(192,38,211,0.08);border-left:2.5px solid #c026d3;border-radius:6px;font-family:'Exo 2',sans-serif;font-size:11.5px;font-weight:400;color:rgba(255,255,255,0.7);line-height:1.6;font-style:italic;}
+
+/* ══════════════
+   UPLOAD SCREEN
+══════════════ */
+#screen-upload{justify-content:flex-start;padding-top:24px;gap:0;}
+.upload-topbar{position:fixed;top:18px;right:18px;display:flex;gap:10px;align-items:center;z-index:50;}
+.upload-head{display:flex;align-items:center;justify-content:center;gap:18px;flex-wrap:wrap;width:100%;max-width:920px;margin-bottom:18px;}
+.upload-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;width:100%;max-width:920px;margin-top:8px;}
+@media(max-width:760px){.upload-grid{grid-template-columns:1fr;}}
+
+/* Instruction strip */
+.up-instr-strip{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;width:100%;max-width:920px;margin-bottom:12px;}
+.up-instr-pill{display:flex;align-items:center;gap:9px;padding:8px 14px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.09);border-radius:50px;}
+.up-instr-num{flex-shrink:0;width:20px;height:20px;border-radius:50%;background:linear-gradient(135deg,#093c92,#c026d3);display:flex;align-items:center;justify-content:center;font-family:'Orbitron',sans-serif;font-size:10px;font-weight:900;color:#fff;}
+.up-instr-txt{font-family:'Exo 2',sans-serif;font-size:12px;font-weight:400;color:rgba(255,255,255,0.7);}
+.up-instr-txt b{color:#fff;font-weight:600;}
+
+/* No-photo fallback */
+.no-photo-row{display:flex;align-items:center;gap:8px;padding:10px 12px;background:rgba(255,255,255,0.03);border:1px dashed rgba(255,255,255,0.14);border-radius:10px;margin-top:4px;cursor:pointer;transition:all 0.2s;user-select:none;}
+.no-photo-row:hover{background:rgba(255,255,255,0.06);border-color:rgba(255,255,255,0.22);}
+.no-photo-check{flex-shrink:0;width:18px;height:18px;border-radius:5px;border:1.5px solid rgba(255,255,255,0.3);display:flex;align-items:center;justify-content:center;transition:all 0.18s;background:rgba(255,255,255,0.04);}
+.no-photo-row.checked .no-photo-check{background:linear-gradient(135deg,#093c92,#c026d3);border-color:#c026d3;}
+.no-photo-check svg{width:11px;height:11px;opacity:0;transition:opacity 0.18s;}
+.no-photo-row.checked .no-photo-check svg{opacity:1;}
+.no-photo-txt{font-family:'Exo 2',sans-serif;font-size:11.5px;font-weight:400;color:rgba(255,255,255,0.55);line-height:1.4;flex:1;}
+.no-photo-row.checked .no-photo-txt{color:rgba(255,255,255,0.85);}
+
+/* Skipped photo state */
+.dropzone.skipped{border-style:solid;border-color:rgba(16,185,129,0.5);background:rgba(16,185,129,0.06);box-shadow:inset 0 0 30px rgba(16,185,129,0.08);}
+.dz-skipped{display:flex;flex-direction:column;align-items:center;gap:8px;}
+.dz-skipped-check{width:54px;height:54px;border-radius:50%;background:rgba(16,185,129,0.18);border:2px solid #10b981;display:flex;align-items:center;justify-content:center;font-size:28px;color:#10b981;}
+.dz-skipped-text{font-family:'Orbitron',sans-serif;font-size:12px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#10b981;}
+.dz-skipped-sub{font-family:'Exo 2',sans-serif;font-size:11.5px;font-weight:300;color:rgba(255,255,255,0.55);text-align:center;max-width:240px;line-height:1.5;}
+
+.up-card{background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:22px;backdrop-filter:blur(16px);padding:24px;display:flex;flex-direction:column;gap:14px;}
+.up-step{font-family:'Orbitron',sans-serif;font-size:9px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:rgba(192,38,211,0.85);}
+.up-h{font-family:'Orbitron',sans-serif;font-size:15px;font-weight:700;color:#fff;letter-spacing:1px;}
+.up-helper{font-family:'Exo 2',sans-serif;font-size:12px;font-weight:300;color:rgba(255,255,255,0.45);line-height:1.6;}
+
+/* Drop zone */
+.dropzone{position:relative;flex:1;min-height:240px;border:2px dashed rgba(192,38,211,0.45);border-radius:18px;background:rgba(192,38,211,0.04);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;cursor:pointer;transition:all 0.22s;overflow:hidden;text-align:center;padding:18px;}
+.dropzone:hover,.dropzone.drag{border-color:#c026d3;background:rgba(192,38,211,0.1);box-shadow:inset 0 0 40px rgba(192,38,211,0.15);}
+.dz-icon{font-size:46px;line-height:1;filter:drop-shadow(0 0 14px rgba(192,38,211,0.5));}
+.dz-text{font-family:'Orbitron',sans-serif;font-size:12px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#fff;}
+.dz-sub{font-family:'Exo 2',sans-serif;font-size:11.5px;font-weight:300;color:rgba(255,255,255,0.45);}
+.dz-link{color:#c026d3;text-decoration:underline;cursor:pointer;}
+#fileInput{display:none;}
+.dropzone img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:16px;}
+.dz-overlay{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;padding:14px;background:linear-gradient(to top,rgba(5,8,24,0.92) 0%,rgba(5,8,24,0.4) 50%,transparent 100%);border-radius:16px;}
+.dz-replace{font-family:'Exo 2',sans-serif;font-size:11px;font-weight:600;color:rgba(255,255,255,0.85);background:rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.2);border-radius:50px;padding:6px 14px;backdrop-filter:blur(8px);}
+
+/* Naming */
+.field-label{font-family:'Orbitron',sans-serif;font-size:9px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:rgba(255,255,255,0.45);margin-bottom:6px;}
+.name-input{width:100%;background:rgba(255,255,255,0.07);border:1.5px solid rgba(255,255,255,0.14);border-radius:12px;color:#fff;font-family:'Orbitron',sans-serif;font-size:18px;font-weight:700;padding:14px 16px;letter-spacing:1px;transition:border-color 0.2s;}
+.name-input:focus{outline:none;border-color:#c026d3;box-shadow:0 0 0 4px rgba(192,38,211,0.15);}
+.name-input::placeholder{color:rgba(255,255,255,0.25);font-weight:400;letter-spacing:0.5px;}
+.tagline-input{width:100%;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);border-radius:12px;color:#fff;font-family:'Exo 2',sans-serif;font-size:14px;font-weight:400;padding:12px 14px;line-height:1.5;resize:none;min-height:80px;transition:border-color 0.2s;}
+.tagline-input:focus{outline:none;border-color:#c026d3;}
+.tagline-input::placeholder{color:rgba(255,255,255,0.25);}
+.char-counter{font-family:'Exo 2',sans-serif;font-size:10px;color:rgba(255,255,255,0.3);text-align:right;margin-top:4px;}
+
+.suggest-row{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;}
+.suggest{font-family:'Orbitron',sans-serif;font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:rgba(255,255,255,0.55);background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);border-radius:50px;padding:5px 11px;cursor:pointer;transition:all 0.18s;}
+.suggest:hover{background:rgba(192,38,211,0.15);border-color:rgba(192,38,211,0.5);color:#fff;}
+
+.up-footer{display:flex;justify-content:space-between;align-items:center;width:100%;max-width:920px;margin-top:24px;flex-wrap:wrap;gap:12px;}
+.up-progress{display:flex;align-items:center;gap:10px;font-family:'Exo 2',sans-serif;font-size:12px;color:rgba(255,255,255,0.4);}
+.up-prog-dot{width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,0.15);transition:background 0.3s;}
+.up-prog-dot.done{background:#c026d3;box-shadow:0 0 10px rgba(192,38,211,0.6);}
+
+/* ══════════════
+   PREVIEW / CONFIRM SCREEN
+══════════════ */
+#screen-preview{gap:0;}
+.preview-card{background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);border-radius:24px;backdrop-filter:blur(16px);padding:28px;max-width:520px;width:100%;display:flex;flex-direction:column;gap:18px;}
+.pv-img-wrap{aspect-ratio:4/3;border-radius:16px;overflow:hidden;background:#0a0e2a;border:1px solid rgba(255,255,255,0.1);}
+.pv-img-wrap img{width:100%;height:100%;object-fit:cover;}
+.pv-meta{text-align:center;}
+.pv-tag{font-family:'Orbitron',sans-serif;font-size:9px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:rgba(192,38,211,0.85);margin-bottom:6px;}
+.pv-name{font-family:'Orbitron',sans-serif;font-size:clamp(22px,4vw,30px);font-weight:900;color:#fff;letter-spacing:1.5px;line-height:1.15;}
+.pv-tagline{font-family:'Exo 2',sans-serif;font-size:14px;font-weight:300;color:rgba(255,255,255,0.65);line-height:1.6;margin-top:8px;font-style:italic;}
+.pv-for{display:inline-flex;align-items:center;gap:8px;font-family:'Exo 2',sans-serif;font-size:11px;color:rgba(255,255,255,0.5);background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:50px;padding:6px 14px;margin:0 auto;}
+.pv-for-em{font-size:13px;}
+.pv-actions{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;}
+
+/* ══════════════
+   COMPLETE SCREEN
+══════════════ */
+#screen-complete{gap:18px;text-align:center;}
+.cmp-badge{font-family:'Exo 2',sans-serif;font-size:10px;font-weight:600;letter-spacing:5px;text-transform:uppercase;color:rgba(255,255,255,0.35);background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.09);border-radius:50px;padding:6px 20px;}
+.cmp-icon{font-size:clamp(48px,8vw,68px);}
+.cmp-title{font-family:'Orbitron',sans-serif;font-size:clamp(28px,5.5vw,54px);font-weight:900;color:#fff;letter-spacing:2px;text-transform:uppercase;text-shadow:0 0 50px rgba(192,38,211,0.55);line-height:1.1;}
+.cmp-desc{font-family:'Exo 2',sans-serif;font-size:clamp(13px,1.7vw,15px);font-weight:300;color:rgba(255,255,255,0.5);line-height:1.8;max-width:440px;}
+.cmp-product{display:inline-flex;align-items:center;gap:14px;background:rgba(192,38,211,0.08);border:1px solid rgba(192,38,211,0.3);border-radius:18px;padding:14px 22px;margin-top:6px;}
+.cmp-thumb{width:64px;height:64px;border-radius:12px;background:#0a0e2a;border:1px solid rgba(255,255,255,0.1);overflow:hidden;flex-shrink:0;}
+.cmp-thumb img{width:100%;height:100%;object-fit:cover;}
+.cmp-product-info{text-align:left;}
+.cmp-product-name{font-family:'Orbitron',sans-serif;font-size:16px;font-weight:900;color:#fff;letter-spacing:1px;}
+.cmp-product-tag{font-family:'Exo 2',sans-serif;font-size:11px;color:rgba(255,255,255,0.5);margin-top:2px;}
+
+.score-block{background:rgba(192,38,211,0.08);border:1px solid rgba(192,38,211,0.2);border-radius:18px;padding:18px 40px;}
+.score-num{font-family:'Orbitron',sans-serif;font-size:clamp(40px,8vw,70px);font-weight:900;color:#c026d3;text-shadow:0 0 30px rgba(192,38,211,0.55);line-height:1;}
+.score-lbl{font-family:'Exo 2',sans-serif;font-size:11px;font-weight:600;letter-spacing:3px;text-transform:uppercase;color:rgba(255,255,255,0.28);margin-top:4px;}
+.conf{position:fixed;pointer-events:none;z-index:400;width:8px;height:8px;border-radius:2px;animation:cfall var(--dur) ease-in forwards;}
+@keyframes cfall{0%{opacity:1;transform:translate(0,0) rotate(0deg);}100%{opacity:0;transform:translate(var(--tx),var(--ty)) rotate(var(--rot));}}
+
+/* ── BACK BUTTONS ── */
+.back-mini{display:inline-flex;align-items:center;gap:6px;font-family:'Exo 2',sans-serif;font-size:12px;color:rgba(255,255,255,0.45);cursor:pointer;transition:color 0.2s;background:none;border:none;padding:0;}
+.back-mini:hover{color:#fff;}
+</style>
+</head>
+<body>
+<canvas id="starCanvas"></canvas>
+
+<button id="settingsBtn" onclick="toggleSettings()" title="Configurar">⚙</button>
+<div id="settingsPanel">
+  <div class="set-title">⚙ Configurar Fase 3</div>
+  <div class="set-row">
+    <span class="set-lbl">Tiempo construcción (seg)</span>
+    <input class="set-inp" id="buildTimeSec" type="number" value="900" min="60" max="3600">
+  </div>
+  <div class="set-row">
+    <span class="set-lbl">Persona objetivo</span>
+    <input class="set-inp text" id="personaName" type="text" value="Martina López">
+  </div>
+  <div class="set-row">
+    <span class="set-lbl">Edad / contexto</span>
+    <input class="set-inp text" id="personaMeta" type="text" value="29 años · Profesora rural">
+  </div>
+  <div class="set-row">
+    <span class="set-lbl">Emoji</span>
+    <input class="set-inp" id="personaEmoji" type="text" value="👩‍🏫">
+  </div>
+</div>
+
+<!-- ══ SCREEN: INTRO ══ -->
+<div class="screen active" id="screen-intro">
+  <div class="phase-badge">Fase 3 · Prototipo</div>
+  <div class="lego-stack">
+    <div class="brick b1"></div>
+    <div class="brick b2"></div>
+    <div class="brick b3"></div>
+  </div>
+  <div class="phase-title">Construyan su<br>Solución</div>
+  <p class="phase-sub">Recibieron una caja de Legos. Es hora de pasar de las ideas al prototipo físico — algo tangible que resuelva el problema de su persona.</p>
+
+  <div class="intro-card">
+    <div class="intro-steps">
+      <div class="istep">
+        <div class="istep-num">1</div>
+        <div class="istep-text"><b>Tomen los Legos</b> y construyan, en equipo, un prototipo físico de la solución que imaginaron en la fase anterior.</div>
+      </div>
+      <div class="istep">
+        <div class="istep-num">2</div>
+        <div class="istep-text"><b>Recuerden a su persona.</b> Cada pieza que pongan debería responder a algo que ella necesita, siente o no puede hacer hoy.</div>
+      </div>
+      <div class="istep">
+        <div class="istep-num">3</div>
+        <div class="istep-text"><b>Saquen una foto</b> de su prototipo terminado y <b>pónganle un nombre</b> a su solución. Súbanla aquí cuando estén listos.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="intro-cta">
+    <button class="btn-primary" onclick="startBuild()">Empezar a construir →</button>
+  </div>
+</div>
+
+<!-- ══ SCREEN: UPLOAD (final screen — instrucciones + timer + foto + nombre) ══ -->
+<div class="screen" id="screen-upload">
+  <button class="back-mini" onclick="showScreen('screen-intro')" style="position:absolute;top:18px;left:70px;">← Volver al inicio</button>
+
+  <!-- Persona dropdown panel (anchored under the upload pill) -->
+  <div class="persona-panel" id="personaPanel">
+    <div class="pp-head">
+      <div class="pp-avatar" id="ppAvatar">👩‍🏫</div>
+      <div class="pp-id">
+        <div class="pp-name" id="ppName">Martina López</div>
+        <div class="pp-meta" id="ppMeta">29 años · Profesora rural</div>
+      </div>
+    </div>
+    <div class="pp-section">El desafío</div>
+    <div class="pp-title" id="ppTitle">Salud mental en zonas rurales</div>
+    <div class="pp-context" id="ppContext">Martina lleva 3 años sintiéndose abrumada por el estrés laboral y la soledad. El único psicólogo del pueblo atiende solo una vez a la semana y la lista de espera supera los 6 meses.</div>
+    <div class="pp-tip">💡 Antes de subir la foto, pregúntense: ¿esto resuelve algo real para ella?</div>
+  </div>
+
+  <!-- Header: persona pill + big timer side by side -->
+  <div class="upload-head">
+    <div class="persona-reminder" id="personaReminderUp" onclick="togglePersonaPanelUp(event)" style="position:relative;top:0;left:auto;transform:none;">
+      <div class="pr-avatar" id="prAvatarUp">👩‍🏫</div>
+      <div class="pr-info">
+        <div class="pr-label">Su solución es para</div>
+        <div class="pr-name-row">
+          <span class="pr-name" id="prNameUp">Martina López</span>
+          <span class="pr-chev">▼</span>
+        </div>
+        <div class="pr-helper">Toca para releer el problema</div>
+      </div>
+    </div>
+    <div class="timer-block">
+      <div class="tb-label">Tiempo restante</div>
+      <div class="big-timer" id="bigTimer">15:00</div>
+    </div>
+  </div>
+
+  <div class="phase-title" style="font-size:clamp(22px,3.6vw,36px);margin-bottom:6px;">Suban su Proyecto</div>
+  <p class="phase-sub" style="margin-bottom:14px;">Construyan con los Legos su prototipo y, cuando estén listos, suban la foto y bautícenlo.</p>
+
+  <!-- Instrucciones compactas en píldoras numeradas -->
+  <div class="up-instr-strip">
+    <div class="up-instr-pill"><span class="up-instr-num">1</span><span class="up-instr-txt"><b>Construyan</b> el prototipo con los Legos</span></div>
+    <div class="up-instr-pill"><span class="up-instr-num">2</span><span class="up-instr-txt"><b>Saquen una foto</b> cenital y con luz</span></div>
+    <div class="up-instr-pill"><span class="up-instr-num">3</span><span class="up-instr-txt"><b>Pónganle un nombre</b> a su solución</span></div>
+  </div>
+
+  <div class="upload-grid">
+    <!-- Photo card -->
+    <div class="up-card">
+      <div class="up-step">Paso 1 · Foto</div>
+      <div class="up-h">Su prototipo en imagen</div>
+      <div class="up-helper">Foto cenital, fondo limpio. Que se entienda qué construyeron.</div>
+      <label class="dropzone" id="dropzone" for="fileInput">
+        <span class="dz-icon">📦</span>
+        <span class="dz-text">Subir foto del Lego</span>
+        <span class="dz-sub">Arrastra la imagen aquí o <span class="dz-link">explora archivos</span></span>
+        <span class="dz-sub" style="font-size:10.5px;opacity:0.6;">JPG · PNG · HEIC · hasta 10 MB</span>
+      </label>
+      <input type="file" id="fileInput" accept="image/*">
+
+      <!-- Fallback: si no pueden subir foto en este momento -->
+      <div class="no-photo-row" id="noPhotoRow" onclick="toggleNoPhoto()">
+        <div class="no-photo-check">
+          <svg viewBox="0 0 12 12" fill="none"><path d="M2 6.5L5 9L10 3" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <div class="no-photo-txt">No es posible subir una foto en este momento — saltar este paso.</div>
+      </div>
+    </div>
+
+    <!-- Naming card -->
+    <div class="up-card">
+      <div class="up-step">Paso 2 · Nombre</div>
+      <div class="up-h">Bauticen su solución</div>
+      <div class="up-helper">Un nombre corto, memorable. Como si fuera el de una startup real.</div>
+      <div>
+        <div class="field-label">Nombre del producto</div>
+        <input class="name-input" id="productName" type="text" placeholder="Ej: AmaranTo, Mentea, RaízUp…" maxlength="28">
+      </div>
+      <div>
+        <div class="field-label">Frase descriptiva (opcional)</div>
+        <textarea class="tagline-input" id="productTagline" placeholder="En una frase: ¿qué hace su solución?" maxlength="120"></textarea>
+        <div class="char-counter" id="taglineCounter">0 / 120</div>
+      </div>
+      <div>
+        <div class="field-label">¿Sin ideas? Combinen palabras</div>
+        <div class="suggest-row" id="suggestRow"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="up-footer">
+    <div class="up-progress">
+      <span class="up-prog-dot" id="dotPhoto"></span>
+      <span id="lblPhoto">Foto pendiente</span>
+      <span style="margin-left:12px;"></span>
+      <span class="up-prog-dot" id="dotName"></span>
+      <span id="lblName">Nombre pendiente</span>
+    </div>
+    <button class="btn-primary" id="submitBtn" onclick="goToPreview()" disabled>Ver vista previa →</button>
+  </div>
+</div>
+
+<!-- ══ SCREEN: PREVIEW ══ -->
+<div class="screen" id="screen-preview">
+  <button class="back-mini" onclick="showScreen('screen-upload')" style="margin-bottom:18px;">← Editar</button>
+  <div class="phase-badge" style="margin-bottom:16px;">Vista previa</div>
+
+  <div class="preview-card">
+    <div class="pv-img-wrap"><img id="pvImg" alt="Prototipo"></div>
+    <div class="pv-meta">
+      <div class="pv-tag">Su solución</div>
+      <div class="pv-name" id="pvName">NOMBRE</div>
+      <div class="pv-tagline" id="pvTagline"></div>
+    </div>
+    <div class="pv-for"><span class="pv-for-em" id="pvForEm">👩‍🏫</span> Construido para <b style="color:#fff;margin-left:2px;" id="pvForName">Martina López</b></div>
+    <div class="pv-actions">
+      <button class="btn-ghost" onclick="showScreen('screen-upload')">← Cambiar algo</button>
+      <button class="btn-primary" onclick="finishPhase()">Entregar prototipo →</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ SCREEN: COMPLETE ══ -->
+<div class="screen" id="screen-complete">
+  <div class="cmp-badge">Misión Completada · Fase 3</div>
+  <div class="cmp-icon">🧱</div>
+  <div class="cmp-title">¡Prototipo<br>Entregado!</div>
+  <p class="cmp-desc" id="cmpDesc">Pasaron de la idea al objeto. Eso es lo que separa un equipo que sueña de uno que construye.</p>
+
+  <div class="cmp-product" id="cmpProduct">
+    <div class="cmp-thumb"><img id="cmpThumb" alt=""></div>
+    <div class="cmp-product-info">
+      <div class="cmp-product-name" id="cmpProductName">PROYECTO</div>
+      <div class="cmp-product-tag" id="cmpProductTag">para alguien real</div>
+    </div>
+  </div>
+
+  <div class="score-block">
+    <div class="score-num" id="cmpScore">800</div>
+    <div class="score-lbl">puntos obtenidos</div>
+  </div>
+  <button class="btn-primary" onclick="finishMission()">Continuar Misión →</button>
+</div>
+
+<script>
+/* ══════════ STARFIELD (igual que fases anteriores) ══════════ */
+const bgC=document.getElementById('starCanvas'),bgX=bgC.getContext('2d');
+let BW,BH,stars=[];
+function resizeBg(){BW=bgC.width=innerWidth;BH=bgC.height=innerHeight;}
+resizeBg();window.addEventListener('resize',resizeBg);
+function makeStars(){stars=[];for(let i=0;i<260;i++)stars.push({x:Math.random()*BW,y:Math.random()*BH,r:Math.random()*1.2+0.2,a:Math.random()*0.5+0.2,p:Math.random()*Math.PI*2,s:Math.random()*0.013+0.004});}
+makeStars();
+(function loop(ts){
+  const t=ts*0.001;
+  bgX.fillStyle='#050818';bgX.fillRect(0,0,BW,BH);
+  const g1=bgX.createRadialGradient(BW*.3,BH*.38,0,BW*.3,BH*.38,BW*.58);
+  g1.addColorStop(0,'rgba(9,60,146,0.2)');g1.addColorStop(1,'transparent');
+  bgX.fillStyle=g1;bgX.fillRect(0,0,BW,BH);
+  const g2=bgX.createRadialGradient(BW*.74,BH*.6,0,BW*.74,BH*.6,BW*.36);
+  g2.addColorStop(0,'rgba(192,38,211,0.1)');g2.addColorStop(1,'transparent');
+  bgX.fillStyle=g2;bgX.fillRect(0,0,BW,BH);
+  stars.forEach(s=>{const tw=.5+.5*Math.sin(s.p+t*s.s*60);bgX.beginPath();bgX.arc(s.x,s.y,s.r,0,Math.PI*2);bgX.fillStyle=`rgba(255,255,255,${s.a*tw})`;bgX.fill();});
+  requestAnimationFrame(loop);
+})(0);
+
+/* ══════════ SCREENS ══════════ */
+let activeScreen='screen-intro';
+function showScreen(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  activeScreen=id;
+  // Reset reminder panel state
+  const p=document.getElementById('personaPanel');if(p){p.classList.remove('open');p.style.top='';p.style.left='';}
+  const r2=document.getElementById('personaReminderUp');if(r2)r2.classList.remove('open');
+}
+
+/* ══════════ SETTINGS ══════════ */
+function toggleSettings(){document.getElementById('settingsPanel').classList.toggle('open');}
+document.addEventListener('click',e=>{
+  const btn=document.getElementById('settingsBtn'),panel=document.getElementById('settingsPanel');
+  if(!btn.contains(e.target)&&!panel.contains(e.target))panel.classList.remove('open');
+});
+const getBuildSec=()=>Math.max(60,parseInt(document.getElementById('buildTimeSec').value)||900);
+
+/* Sync settings → persona pills */
+function syncPersona(){
+  const name=document.getElementById('personaName').value.trim()||'Martina López';
+  const meta=document.getElementById('personaMeta').value.trim()||'';
+  const emoji=document.getElementById('personaEmoji').value.trim()||'👩‍🏫';
+  ['prAvatar','prAvatarUp','ppAvatar','pvForEm'].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent=emoji;});
+  ['prName','prNameUp','ppName','pvForName'].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent=name;});
+  document.getElementById('ppMeta').textContent=meta;
+}
+['personaName','personaMeta','personaEmoji'].forEach(id=>{
+  document.getElementById(id).addEventListener('input',syncPersona);
+});
+
+/* ══════════ TIMER ══════════ */
+let timerIv=null,timeLeft=0;
+function startTimer(secs,onDone){
+  clearInterval(timerIv);timeLeft=secs;
+  updateTimerEl();
+  timerIv=setInterval(()=>{timeLeft--;updateTimerEl();if(timeLeft<=0){clearInterval(timerIv);if(onDone)onDone();}},1000);
+}
+function stopTimer(){clearInterval(timerIv);timerIv=null;}
+function fmtT(s){const m=Math.floor(s/60),x=s%60;return `${m}:${String(x).padStart(2,'0')}`;}
+function updateTimerEl(){
+  const big=document.getElementById('bigTimer');
+  if(big){big.textContent=fmtT(timeLeft);big.classList.remove('warn','danger');}
+  if(timeLeft<=15){big&&big.classList.add('danger');}
+  else if(timeLeft<=60){big&&big.classList.add('warn');}
+}
+
+/* ══════════ FLOW ══════════ */
+function startBuild(){
+  // Ya no hay pantalla intermedia — vamos directo a la pantalla final con timer
+  showScreen('screen-upload');
+  startTimer(getBuildSec(),()=>{ /* tiempo se acabó: dejamos que sigan, sin forzar salto */ });
+}
+
+/* ══════════ PERSONA PANEL ══════════ */
+function togglePersonaPanelUp(e){
+  e.stopPropagation();
+  const pill=document.getElementById('personaReminderUp');
+  pill.classList.toggle('open');
+  const panel=document.getElementById('personaPanel');
+  if(pill.classList.contains('open')){
+    const r=pill.getBoundingClientRect();
+    panel.style.top=(r.bottom+8)+'px';
+    panel.style.left=(r.left+r.width/2)+'px';
+    panel.classList.add('open');
+  } else {
+    panel.classList.remove('open');
+    panel.style.top='';panel.style.left='';
+  }
+}
+document.addEventListener('click',e=>{
+  const r2=document.getElementById('personaReminderUp');
+  const p=document.getElementById('personaPanel');
+  if(r2&&!r2.contains(e.target)&&!p.contains(e.target)){
+    r2.classList.remove('open');p.classList.remove('open');
+  }
+});
+
+/* ══════════ UPLOAD: image ══════════ */
+const dz=document.getElementById('dropzone');
+const fi=document.getElementById('fileInput');
+let uploadedDataURL=null;
+let photoSkipped=false;
+
+dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('drag');});
+dz.addEventListener('dragleave',()=>dz.classList.remove('drag'));
+dz.addEventListener('drop',e=>{
+  e.preventDefault();dz.classList.remove('drag');
+  const f=e.dataTransfer.files&&e.dataTransfer.files[0];
+  if(f)handleFile(f);
+});
+fi.addEventListener('change',e=>{
+  const f=e.target.files&&e.target.files[0];
+  if(f)handleFile(f);
+});
+
+function handleFile(f){
+  if(!f.type.startsWith('image/')){alert('Por favor sube una imagen.');return;}
+  // si subieron una foto, automáticamente desmarcamos "sin foto"
+  if(photoSkipped){
+    photoSkipped=false;
+    document.getElementById('noPhotoRow').classList.remove('checked');
+  }
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    uploadedDataURL=ev.target.result;
+    renderDropzone();
+    updateProgress();
+  };
+  reader.readAsDataURL(f);
+}
+
+function renderDropzone(){
+  dz.classList.remove('skipped');
+  if(photoSkipped){
+    dz.classList.add('skipped');
+    dz.innerHTML=`
+      <div class="dz-skipped">
+        <div class="dz-skipped-check">✓</div>
+        <div class="dz-skipped-text">Paso saltado</div>
+        <div class="dz-skipped-sub">Pueden continuar sin foto. Si más tarde la consiguen, desmarquen la opción de abajo.</div>
+      </div>`;
+  } else if(!uploadedDataURL){
+    dz.innerHTML=`
+      <span class="dz-icon">📦</span>
+      <span class="dz-text">Subir foto del Lego</span>
+      <span class="dz-sub">Arrastra la imagen aquí o <span class="dz-link">explora archivos</span></span>
+      <span class="dz-sub" style="font-size:10.5px;opacity:0.6;">JPG · PNG · HEIC · hasta 10 MB</span>`;
+  } else {
+    dz.innerHTML=`
+      <img src="${uploadedDataURL}" alt="prototipo">
+      <div class="dz-overlay">
+        <span class="dz-replace">↻ Reemplazar foto</span>
+      </div>`;
+  }
+}
+
+function toggleNoPhoto(){
+  photoSkipped=!photoSkipped;
+  document.getElementById('noPhotoRow').classList.toggle('checked',photoSkipped);
+  if(photoSkipped){
+    // limpiar archivo si lo había
+    uploadedDataURL=null;
+    fi.value='';
+  }
+  renderDropzone();
+  updateProgress();
+}
+
+/* ══════════ UPLOAD: name ══════════ */
+const nameInp=document.getElementById('productName');
+const tagInp=document.getElementById('productTagline');
+const counter=document.getElementById('taglineCounter');
+
+nameInp.addEventListener('input',updateProgress);
+tagInp.addEventListener('input',()=>{
+  counter.textContent=`${tagInp.value.length} / 120`;
+});
+
+function updateProgress(){
+  const hasPhoto=!!uploadedDataURL;
+  const photoStepDone=hasPhoto||photoSkipped;
+  const hasName=nameInp.value.trim().length>=2;
+  document.getElementById('dotPhoto').classList.toggle('done',photoStepDone);
+  document.getElementById('dotName').classList.toggle('done',hasName);
+  document.getElementById('lblPhoto').textContent=hasPhoto?'Foto lista':(photoSkipped?'Sin foto (saltado)':'Foto pendiente');
+  document.getElementById('lblName').textContent=hasName?'Nombre listo':'Nombre pendiente';
+  document.getElementById('submitBtn').disabled=!(photoStepDone&&hasName);
+}
+
+/* Suggested name combinator */
+const SUG_LEFT=['Eco','Mente','Raíz','Co','Lumi','Aqua','Sana','Nido','Vida','Pulso','Tierra','Aula'];
+const SUG_RIGHT=['Up','Lab','Link','Vivo','Tech','Mente','Fy','One','Cast','Click','Red','Más'];
+function buildSuggestions(){
+  const wrap=document.getElementById('suggestRow');
+  const used=new Set();
+  const sugs=[];
+  while(sugs.length<6){
+    const s=SUG_LEFT[Math.floor(Math.random()*SUG_LEFT.length)]+SUG_RIGHT[Math.floor(Math.random()*SUG_RIGHT.length)];
+    if(!used.has(s)){used.add(s);sugs.push(s);}
+  }
+  wrap.innerHTML=sugs.map(s=>`<span class="suggest" onclick="pickSuggestion('${s}')">${s}</span>`).join('');
+}
+function pickSuggestion(s){nameInp.value=s;nameInp.focus();updateProgress();}
+buildSuggestions();
+
+/* ══════════ PREVIEW ══════════ */
+function goToPreview(){
+  stopTimer();
+  const pvImg=document.getElementById('pvImg');
+  const pvWrap=pvImg.parentElement;
+  if(uploadedDataURL){
+    pvImg.src=uploadedDataURL;pvImg.style.display='';
+    pvWrap.innerHTML='';pvWrap.appendChild(pvImg);
+  } else {
+    pvWrap.innerHTML=`<div style="width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:rgba(255,255,255,0.4);font-family:'Exo 2',sans-serif;font-size:13px;"><span style="font-size:42px;">🧱</span><span>Foto pendiente</span><span style="font-size:11px;color:rgba(255,255,255,0.3);">Pueden subirla más tarde</span></div>`;
+  }
+  document.getElementById('pvName').textContent=nameInp.value.trim().toUpperCase();
+  const tag=tagInp.value.trim();
+  document.getElementById('pvTagline').textContent=tag||'';
+  document.getElementById('pvTagline').style.display=tag?'block':'none';
+  document.getElementById('pvForName').textContent=document.getElementById('personaName').value.trim()||'su persona';
+  document.getElementById('pvForEm').textContent=document.getElementById('personaEmoji').value.trim()||'🧑';
+  showScreen('screen-preview');
+}
+
+/* ══════════ COMPLETE ══════════ */
+function finishPhase(){
+  // Score: photo + name + tagline bonus
+  let score=600;
+  if(uploadedDataURL)score+=100;
+  if(nameInp.value.trim().length>=2)score+=80;
+  if(tagInp.value.trim().length>=10)score+=60;
+  document.getElementById('cmpScore').textContent=score;
+  const thumb=document.getElementById('cmpThumb');
+  if(uploadedDataURL){thumb.innerHTML=`<img src="${uploadedDataURL}" alt="">`;}
+  else {thumb.innerHTML=`<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:28px;">🧱</div>`;}
+  document.getElementById('cmpProductName').textContent=nameInp.value.trim().toUpperCase();
+  const personaName=document.getElementById('personaName').value.trim()||'su persona';
+  const tag=tagInp.value.trim();
+  document.getElementById('cmpProductTag').textContent=tag?tag:`para ${personaName}`;
+  document.getElementById('cmpDesc').textContent=`"${nameInp.value.trim()}" ya existe en el mundo físico. Construyeron algo real para alguien real — eso es lo que hace una verdadera startup.`;
+  showScreen('screen-complete');
+  spawnConfetti();
+}
+
+function finishMission(){
+  console.log('Fase 3 completada — pendiente de integración con Fase 4');
+}
+
+function spawnConfetti(){
+  const cols=['#c026d3','#093c92','#f97316','#fbbf24','#10b981','#818cf8','#ef4444'];
+  for(let i=0;i<60;i++){
+    const el=document.createElement('div');el.className='conf';
+    const x=Math.random()*innerWidth,dur=(1.6+Math.random()*1.6).toFixed(2);
+    const tx=(Math.random()*240-120).toFixed(0),ty=(innerHeight*0.55+Math.random()*innerHeight*0.45).toFixed(0);
+    el.style.cssText=`left:${x}px;top:-10px;background:${cols[Math.floor(Math.random()*cols.length)]};--dur:${dur}s;--tx:${tx}px;--ty:${ty}px;--rot:${(Math.random()*720-360).toFixed(0)}deg;animation-delay:${(Math.random()*0.7).toFixed(2)}s;`;
+    document.body.appendChild(el);setTimeout(()=>el.remove(),(parseFloat(dur)+1)*1000);
+  }
+}
+
+/* Init */
+syncPersona();
+</script>
+</body>
+</html>
